@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+.svelte-kit/
+.turbo/
+
+# Cloudflare / Wrangler
+.wrangler/
+.dev.vars
+.env
+.env.*
+
+# Pipeline working data (local only, not versioned)
+inbox/
+drafts/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
