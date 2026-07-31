@@ -1,0 +1,302 @@
+<title>yt-space — 影片片段搜尋</title>
+<style>
+  :root {
+    --bg: #FAF7F2;
+    --surface: #FFFFFF;
+    --surface-2: #F3EEE5;
+    --ink: #211C16;
+    --muted: #6F6656;
+    --faint: #97907F;
+    --border: #E7E0D5;
+    --accent: #C96A22;
+    --accent-ink: #FFFFFF;
+    --accent-soft: #F6E7D6;
+    --chip-time: #2E6E63;
+    --chip-time-bg: #DCEEE9;
+    --chip-entity: #B24A2E;
+    --chip-entity-bg: #F6E1D9;
+    --chip-kw: #5A5344;
+    --chip-kw-bg: #ECE6D9;
+    --health: #B23A48;
+    --shadow: 0 1px 2px rgba(33,28,22,.04), 0 8px 24px -12px rgba(33,28,22,.16);
+    --radius: 14px;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", "Hiragino Sans", sans-serif;
+    --serif: "Iowan Old Style", "Palatino Linotype", "Songti TC", "PMingLiU", Georgia, serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #171310;
+      --surface: #221D18;
+      --surface-2: #2B251E;
+      --ink: #F2ECE1;
+      --muted: #A79E8C;
+      --faint: #7C7463;
+      --border: #332C24;
+      --accent: #E28A44;
+      --accent-ink: #1B140D;
+      --accent-soft: #3A2A1A;
+      --chip-time: #86C9BB;
+      --chip-time-bg: #1E332F;
+      --chip-entity: #E79A80;
+      --chip-entity-bg: #37231C;
+      --chip-kw: #C4BBA6;
+      --chip-kw-bg: #2C2820;
+      --health: #E8808C;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px -14px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="light"] {
+    --bg:#FAF7F2;--surface:#FFFFFF;--surface-2:#F3EEE5;--ink:#211C16;--muted:#6F6656;--faint:#97907F;--border:#E7E0D5;--accent:#C96A22;--accent-ink:#FFFFFF;--accent-soft:#F6E7D6;--chip-time:#2E6E63;--chip-time-bg:#DCEEE9;--chip-entity:#B24A2E;--chip-entity-bg:#F6E1D9;--chip-kw:#5A5344;--chip-kw-bg:#ECE6D9;--health:#B23A48;--shadow:0 1px 2px rgba(33,28,22,.04),0 8px 24px -12px rgba(33,28,22,.16);
+  }
+  :root[data-theme="dark"] {
+    --bg:#171310;--surface:#221D18;--surface-2:#2B251E;--ink:#F2ECE1;--muted:#A79E8C;--faint:#7C7463;--border:#332C24;--accent:#E28A44;--accent-ink:#1B140D;--accent-soft:#3A2A1A;--chip-time:#86C9BB;--chip-time-bg:#1E332F;--chip-entity:#E79A80;--chip-entity-bg:#37231C;--chip-kw:#C4BBA6;--chip-kw-bg:#2C2820;--health:#E8808C;--shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px -14px rgba(0,0,0,.6);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--sans); line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 28px 20px 80px; }
+
+  /* Header */
+  .top { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom: 26px; }
+  .brand { display:flex; align-items:baseline; gap:10px; }
+  .logo { font-family: var(--serif); font-size: 26px; font-weight: 600; letter-spacing:-.01em; }
+  .logo .dot { color: var(--accent); }
+  .tagline { font-size: 12.5px; color: var(--faint); letter-spacing:.02em; }
+  .theme-btn {
+    border:1px solid var(--border); background:var(--surface); color:var(--muted);
+    width:38px; height:38px; border-radius:10px; cursor:pointer; font-size:16px;
+    display:grid; place-items:center; transition: background .15s, color .15s;
+  }
+  .theme-btn:hover { color: var(--ink); background: var(--surface-2); }
+  .theme-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Search */
+  .search { position: relative; margin-bottom: 14px; }
+  .search svg { position:absolute; left:16px; top:50%; transform:translateY(-50%); color:var(--faint); }
+  .search input {
+    width:100%; font-family:var(--sans); font-size:16px; color:var(--ink);
+    padding:15px 16px 15px 46px; border-radius:var(--radius);
+    border:1px solid var(--border); background:var(--surface); box-shadow:var(--shadow);
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .search input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .search input::placeholder { color: var(--faint); }
+
+  /* Parse bar */
+  .parse { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin: 4px 2px 26px; }
+  .parse .lead { font-size:12.5px; color:var(--muted); margin-right:2px; }
+  .chip {
+    display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:500;
+    padding:5px 11px; border-radius:999px; line-height:1; white-space:nowrap;
+  }
+  .chip .k { font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; opacity:.72; font-weight:600; }
+  .chip.time { color:var(--chip-time); background:var(--chip-time-bg); }
+  .chip.entity { color:var(--chip-entity); background:var(--chip-entity-bg); }
+  .chip.kw { color:var(--chip-kw); background:var(--chip-kw-bg); }
+  .chip .x { cursor:pointer; opacity:.5; font-size:14px; }
+  .chip .x:hover { opacity:1; }
+
+  /* Results header */
+  .rhead { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+  .rcount { font-size:14px; color:var(--muted); }
+  .rcount b { color:var(--ink); font-weight:600; }
+  .sort { font-size:13px; color:var(--muted); border:1px solid var(--border); background:var(--surface);
+    border-radius:9px; padding:7px 10px; font-family:var(--sans); cursor:pointer; }
+
+  /* Result cards */
+  .list { display:flex; flex-direction:column; gap:14px; }
+  .card {
+    display:grid; grid-template-columns: 168px 1fr; gap:16px;
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:12px; box-shadow:var(--shadow); cursor:pointer;
+    transition: transform .12s ease, border-color .15s;
+  }
+  .card:hover { transform: translateY(-2px); border-color: var(--accent); }
+  .card:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+
+  .thumb {
+    position:relative; aspect-ratio:16/9; border-radius:9px; overflow:hidden;
+    background: linear-gradient(135deg, #E7C79A, #C96A22 130%);
+  }
+  .thumb .cat { position:absolute; inset:0; opacity:.35; }
+  .thumb .time {
+    position:absolute; right:7px; bottom:7px; font-family:var(--mono);
+    font-size:11px; font-variant-numeric:tabular-nums; color:#fff;
+    background:rgba(20,14,8,.72); padding:2px 6px; border-radius:5px; letter-spacing:.02em;
+  }
+  .thumb .play {
+    position:absolute; inset:0; margin:auto; width:42px; height:42px; border-radius:50%;
+    background:rgba(20,14,8,.55); display:grid; place-items:center; color:#fff;
+    opacity:0; transition:opacity .15s; backdrop-filter: blur(2px);
+  }
+  .card:hover .play { opacity:1; }
+
+  .body { min-width:0; display:flex; flex-direction:column; }
+  .summary { font-size:16.5px; font-weight:600; letter-spacing:-.005em; margin:2px 0 8px; text-wrap:balance; }
+  .meta { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin-top:auto; }
+  .date { font-family:var(--mono); font-size:12.5px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .tag { font-size:12px; padding:3px 9px; border-radius:999px; background:var(--surface-2); color:var(--muted); }
+  .tag.ent { color:var(--chip-entity); background:var(--chip-entity-bg); font-weight:500; }
+  .tag.health { color:var(--health); background:transparent; border:1px solid var(--health); }
+  .snippet { font-size:13.5px; color:var(--muted); margin:0 0 10px;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .score { margin-left:auto; font-family:var(--mono); font-size:11.5px; color:var(--faint); }
+
+  /* Player modal */
+  .overlay { position:fixed; inset:0; background:rgba(20,14,8,.55); backdrop-filter:blur(3px);
+    display:none; place-items:center; padding:20px; z-index:50; }
+  .overlay.open { display:grid; }
+  .player { width:min(720px,100%); background:var(--surface); border:1px solid var(--border);
+    border-radius:16px; overflow:hidden; box-shadow:var(--shadow); }
+  .screen { position:relative; aspect-ratio:16/9; background:#12100d; display:grid; place-items:center; }
+  .screen .yt { position:absolute; top:10px; left:12px; font-size:11px; color:#c9c1b3; letter-spacing:.04em; }
+  .screen .pbig { width:64px; height:64px; border-radius:50%; background:var(--accent); color:var(--accent-ink);
+    display:grid; place-items:center; }
+  .bar { height:4px; background:rgba(255,255,255,.16); position:absolute; left:0; right:0; bottom:34px; }
+  .bar i { position:absolute; left:0; top:0; bottom:0; width:14%; background:var(--accent); }
+  .bar .mk { position:absolute; top:-4px; width:12px; height:12px; border-radius:50%; background:#fff; left:14%; transform:translateX(-50%); box-shadow:0 0 0 3px var(--accent); }
+  .ptime { position:absolute; bottom:10px; left:12px; font-family:var(--mono); font-size:11.5px; color:#e8e2d6; font-variant-numeric:tabular-nums; }
+  .pinfo { padding:16px 18px 18px; }
+  .pinfo h3 { margin:0 0 8px; font-size:17px; }
+  .pinfo .row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .pinfo .url { font-family:var(--mono); font-size:12px; color:var(--muted); word-break:break-all;
+    background:var(--surface-2); padding:6px 9px; border-radius:7px; margin-top:12px; }
+  .pinfo .url b { color:var(--accent); }
+  .close { position:absolute; top:10px; right:12px; z-index:2; width:32px; height:32px; border-radius:8px;
+    border:none; background:rgba(20,14,8,.55); color:#fff; cursor:pointer; font-size:16px; }
+
+  @media (max-width:560px){
+    .card { grid-template-columns:1fr; }
+    .thumb { max-width:100%; }
+    .top { flex-wrap:wrap; }
+  }
+  @media (prefers-reduced-motion: reduce){ *{transition:none!important;} }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <span class="logo">yt<span class="dot">·</span>space</span>
+      <span class="tagline">你的私人 Vlog 語意搜尋</span>
+    </div>
+    <button class="theme-btn" id="theme" title="切換深色 / 淺色" aria-label="切換主題">◐</button>
+  </header>
+
+  <div class="search">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+    <input id="q" value="2020~2025 我家的貓在沙發睡覺" aria-label="搜尋影片片段" />
+  </div>
+
+  <div class="parse">
+    <span class="lead">解讀為</span>
+    <span class="chip time"><span class="k">時間</span>2020 – 2025<span class="x">×</span></span>
+    <span class="chip entity"><span class="k">實體</span>小橘 ·「我家的貓」<span class="x">×</span></span>
+    <span class="chip kw"><span class="k">關鍵字</span>沙發<span class="x">×</span></span>
+    <span class="chip kw"><span class="k">關鍵字</span>睡覺<span class="x">×</span></span>
+  </div>
+
+  <div class="rhead">
+    <div class="rcount">找到 <b>3</b> 個符合片段</div>
+    <select class="sort" aria-label="排序方式">
+      <option>依相關度</option>
+      <option>依日期（新→舊）</option>
+      <option>依日期（舊→新）</option>
+    </select>
+  </div>
+
+  <div class="list" id="list"></div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="player" role="dialog" aria-modal="true" aria-label="片段播放">
+    <div class="screen">
+      <button class="close" id="close" aria-label="關閉">×</button>
+      <span class="yt">YouTube · Unlisted</span>
+      <div class="pbig"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+      <div class="bar"><i></i><span class="mk"></span></div>
+      <span class="ptime" id="ptime">01:20 / 05:47</span>
+    </div>
+    <div class="pinfo">
+      <h3 id="ptitle">—</h3>
+      <div class="row" id="pmeta"></div>
+      <div class="url">https://www.youtube.com/embed/<b id="pvid">—</b>?start=<b id="pstart">—</b>&end=<b id="pend">—</b></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Theme toggle
+  const root = document.documentElement, tbtn = document.getElementById('theme');
+  tbtn.onclick = () => {
+    const cur = root.getAttribute('data-theme')
+      || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    root.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark');
+  };
+
+  // Chip remove (visual only, prototype)
+  document.querySelectorAll('.chip .x').forEach(x =>
+    x.onclick = e => { e.stopPropagation(); x.closest('.chip').remove(); });
+
+  const catSVG = `<svg class="cat" viewBox="0 0 100 60" fill="none" stroke="#3a2410" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 44c0-10 8-16 18-16s18 6 18 16"/><path d="M24 30l-4-10 9 5M52 30l4-10-9 5"/><circle cx="33" cy="37" r="1.6" fill="#3a2410"/><circle cx="43" cy="37" r="1.6" fill="#3a2410"/><path d="M56 44c8 2 18-1 22-8"/></svg>`;
+
+  const results = [
+    { summary:'小橘窩在沙發上睡了整個下午', date:'2023-03-05', start:'04:10', end:'05:02',
+      dur:'05:47', vid:'aZ9kP2mLx0', ss:'04:10 起小橘蜷在沙發角落，翻了個身繼續睡，陽光照在牠身上。',
+      tags:['小橘'], score:'0.94', c1:'#E7C79A', c2:'#C96A22' },
+    { summary:'貓咪在沙發打盹，換了好幾個姿勢', date:'2021-08-12', start:'01:20', end:'01:45',
+      dur:'03:12', vid:'kR4nQ8wYt1', ss:'午後小橘在沙發上打盹，伸懶腰後換姿勢，尾巴輕輕擺動。',
+      tags:['小橘'], score:'0.88', c1:'#CFE0D2', c2:'#5E8C6A' },
+    { summary:'小橘睡到一半被吸塵器吵醒', date:'2024-11-02', start:'02:33', end:'03:05',
+      dur:'06:20', vid:'mB7cV1sHn9', ss:'小橘原本在沙發熟睡，吸塵器一開就驚醒跳走，模樣逗趣。',
+      tags:['小橘'], score:'0.71', c1:'#E3C7D6', c2:'#9A5C7A' },
+  ];
+
+  const list = document.getElementById('list');
+  results.forEach(r => {
+    const el = document.createElement('div');
+    el.className = 'card'; el.tabIndex = 0; el.setAttribute('role','button');
+    el.innerHTML = `
+      <div class="thumb" style="background:linear-gradient(135deg, ${r.c1}, ${r.c2} 135%)">
+        ${catSVG}
+        <div class="play"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+        <span class="time">${r.start}–${r.end}</span>
+      </div>
+      <div class="body">
+        <div class="summary">${r.summary}</div>
+        <p class="snippet">${r.ss}</p>
+        <div class="meta">
+          <span class="date">${r.date}</span>
+          ${r.tags.map(t=>`<span class="tag ent">${t}</span>`).join('')}
+          <span class="tag">沙發</span><span class="tag">睡覺</span>
+          <span class="score">相關度 ${r.score}</span>
+        </div>
+      </div>`;
+    const open = () => openPlayer(r);
+    el.onclick = open;
+    el.onkeydown = e => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); open(); } };
+    list.appendChild(el);
+  });
+
+  // Player modal
+  const ov = document.getElementById('overlay');
+  function openPlayer(r){
+    document.getElementById('ptitle').textContent = r.summary;
+    document.getElementById('ptime').textContent = r.start + ' / ' + r.dur;
+    document.getElementById('pvid').textContent = r.vid;
+    document.getElementById('pstart').textContent = toSec(r.start);
+    document.getElementById('pend').textContent = toSec(r.end);
+    document.getElementById('pmeta').innerHTML =
+      `<span class="date">${r.date}</span>` + r.tags.map(t=>`<span class="tag ent">${t}</span>`).join('')
+      + `<span class="tag">片段 ${r.start}–${r.end}</span>`;
+    ov.classList.add('open');
+  }
+  function toSec(mmss){ const [m,s]=mmss.split(':').map(Number); return m*60+s; }
+  document.getElementById('close').onclick = () => ov.classList.remove('open');
+  ov.onclick = e => { if(e.target===ov) ov.classList.remove('open'); };
+  document.addEventListener('keydown', e => { if(e.key==='Escape') ov.classList.remove('open'); });
+</script>

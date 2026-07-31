@@ -215,6 +215,31 @@ pnpm dev
 # 4. 之後即可在搜尋頁查詢
 ```
 
+### 校對與雲端資料流（重要）
+
+草稿與雲端寫入分兩階段，避免未確認的資料污染 dev 環境：
+
+```
+校對「前」：草稿只在本機
+  pipeline 產出 → drafts/*.json + 本機縮圖檔（都在 PC，尚未上雲）
+
+校對頁面：
+  apps/web（SvelteKit，本機瀏覽器）
+        │ 呼叫
+        ▼
+  apps/api（wrangler dev --remote --env dev）
+        │ 綁定
+        ▼
+  dev 環境 D1 + R2  ← 只有按「核准」後才寫入
+
+按「核准」→ POST /ingest：
+  api Worker 把 segment 寫進 dev D1 + 縮圖上傳 dev R2
+```
+
+- **草稿階段完全在本機**，尚未碰任何雲端資源，可反覆檢視/修改。
+- **所有雲端讀寫（含 R2 縮圖上傳）一律經過 api Worker**——pipeline 與校對頁不直接持有 D1/R2 憑證，存取邏輯集中於 api 一處。
+- 本機開發時 api 以 `--remote --env dev` 連遠端 dev 的 D1/R2。
+
 ### 關鍵設計
 
 - **STT = whisper.cpp（medium）**：C++、CPU 最佳化，經 Node `child_process` 呼叫，適合無 GPU 環境。
@@ -347,13 +372,40 @@ pnpm dev
 - YouTube 自動上傳（YouTube Data API + OAuth）。
 - 向量搜尋（Vectorize）。
 - 手機 App。
-- 雲端處理後端（讓 pipeline 上雲）。
+- 雲端處理後端（讓 pipeline 上雲）——流程草案見第九節。
 - 短片預覽（hover 播放的無聲 webm 循環，取代靜態縮圖）——存 R2。
 - 本機 GPU 視覺（ollama）——待硬體升級。
 
 ---
 
-## 九、待實作時確認的開放項目
+## 九、v2 上雲處理流程草案（未來，非 v1 範圍）
+
+v2 目標：把 v1 在本機手動跑的 pipeline，改成使用者透過網站上傳、雲端自動處理。
+
+```
+1. User 網站上傳 5~10 分鐘影片 ──▶ R2（暫存 bucket）
+2. R2 物件建立 event ──▶ Cloudflare Queue（觸發）
+3. Queue consumer 啟動【Container】（能跑 ffmpeg 的容器環境）：
+     ├─ ffmpeg 抽幀              ← 必須在 Container，純 Worker 跑不動 ⚠️
+     ├─ STT：Cloudflare Workers AI 的 Whisper（@cf/openai/whisper）
+     ├─ Gemini Flash 視覺分析
+     └─ 呼叫 YouTube Data API 上傳（OAuth 綁租戶 YT 帳號，取得 video_id）
+4. 結果寫入 D1（＋縮圖寫 R2）
+5. 原始影片：R2 Object Lifecycle 規則設 TTL 自動刪除（處理期間短暫占用，完成後釋放）
+6. User 在網站校對
+```
+
+### 關鍵技術點與限制
+
+- **⚠️ 抽幀（ffmpeg）與重運算不能跑在純 Cloudflare Worker**（Worker 只能 JS/WASM、無法執行 ffmpeg 原生程式）。必須用 **Cloudflare Containers**、外部容器（Fly.io / Render）、或「租戶自己 PC 當 worker」。
+- **R2 event notification → Queue**：Cloudflare 原生支援，可作為上傳完成觸發器。
+- **R2 Object Lifecycle（TTL 自動刪除）**：原生支援，可讓原始影片處理完後自動清除、不長期占空間。取捨：刪除後若要重新處理需重新上傳。
+- **STT 可改用 Cloudflare Workers AI 的 Whisper**（每日 10,000 neurons 免費額度），或維持容器內 whisper.cpp。
+- **成本注意**：v2 唯一「可能開始花錢」的是 **Container 運算**（不像 Workers 有慷慨免費額度）；Queue、Workers AI Whisper、Gemini 多在免費額度內。
+
+---
+
+## 十、待實作時確認的開放項目
 
 - whisper.cpp 的 Node 綁定選型（`nodejs-whisper` 包裝 vs 直接呼叫編譯好的 binary）。
 - ffmpeg 場景偵測門檻值（scene threshold）與每片關鍵幀上限的預設值。
