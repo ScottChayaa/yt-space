@@ -34,7 +34,7 @@ export function parseStoryboardSpec(spec: string): StoryboardSpec | null {
 }
 
 export function pickLevel(spec: StoryboardSpec, preferred = 3): StoryboardLevel | null {
-	const usable = spec.levels.filter((l) => l.intervalMs > 0 && l.cols > 0 && l.rows > 0);
+	const usable = spec.levels.filter((l) => l.intervalMs > 0 && l.cols > 0 && l.rows > 0 && l.frameCount > 0);
 	if (usable.length === 0) return null;
 	return usable.find((l) => l.level === preferred) ?? usable[usable.length - 1];
 }
@@ -42,7 +42,7 @@ export function pickLevel(spec: StoryboardSpec, preferred = 3): StoryboardLevel 
 export function frameAt(level: StoryboardLevel, t: number): FramePos {
 	const perSheet = level.cols * level.rows;
 	const raw = Math.floor(Math.max(0, t) / (level.intervalMs / 1000));
-	const frameIndex = Math.min(raw, level.frameCount - 1);
+	const frameIndex = Math.max(0, Math.min(raw, level.frameCount - 1));
 	const sheetIndex = Math.floor(frameIndex / perSheet);
 	const posInSheet = frameIndex % perSheet;
 	const col = posInSheet % level.cols;

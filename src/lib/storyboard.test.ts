@@ -54,6 +54,17 @@ describe('pickLevel', () => {
 		const spec = { baseUrl: 'x', sqp: '', levels: [] };
 		expect(pickLevel(spec)).toBeNull();
 	});
+
+	it('frameCount = 0 的 level 會被過濾掉', () => {
+		const spec = {
+			baseUrl: 'x',
+			sqp: '',
+			levels: [
+				{ level: 0, width: 100, height: 100, frameCount: 0, cols: 3, rows: 3, intervalMs: 1000, sigh: 'test' }
+			]
+		};
+		expect(pickLevel(spec)).toBeNull();
+	});
 });
 
 describe('frameAt', () => {
@@ -86,6 +97,33 @@ describe('frameAt', () => {
 
 	it('帶出整張 sheet 的尺寸供 CSS background-size 使用', () => {
 		expect(frameAt(l3, 0)).toMatchObject({ sheetWidth: 960, sheetHeight: 540 });
+	});
+
+	it('frameCount = 0 時回傳安全的索引（不為負）', () => {
+		const zeroFrameLevel: typeof l3 = {
+			level: 0,
+			width: 320,
+			height: 180,
+			frameCount: 0,
+			cols: 3,
+			rows: 3,
+			intervalMs: 1000,
+			sigh: 'test'
+		};
+		const result = frameAt(zeroFrameLevel, 5);
+		expect(result.sheetIndex).toBeGreaterThanOrEqual(0);
+		expect(result.col).toBeGreaterThanOrEqual(0);
+		expect(result.row).toBeGreaterThanOrEqual(0);
+		expect(result.offsetX).toBeLessThanOrEqual(0);
+		expect(result.offsetY).toBeLessThanOrEqual(0);
+		// 實際預期為第 0 張左上角
+		expect(result).toMatchObject({
+			sheetIndex: 0,
+			col: 0,
+			row: 0,
+			offsetX: 0,
+			offsetY: 0
+		});
 	});
 });
 
