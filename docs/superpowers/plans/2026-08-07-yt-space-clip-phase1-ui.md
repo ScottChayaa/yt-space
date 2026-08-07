@@ -590,7 +590,7 @@ export function shiftBoundary(value: number, delta: number, min: number, max: nu
 - [ ] **Step 6: 執行測試確認通過**
 
 Run: `pnpm test:unit`
-Expected: PASS（13 passed）
+Expected: PASS（9 passed）
 
 - [ ] **Step 7: Commit**
 
