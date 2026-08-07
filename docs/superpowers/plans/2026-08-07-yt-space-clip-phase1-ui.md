@@ -1124,7 +1124,7 @@ function seedClips(tags: Tag[]): Clip[] {
 			note: '搭帳篷',
 			summary: '一群人在營地手忙腳亂地搭帳篷',
 			transcript: '這個角要先拉起來啦',
-			visualDesc: '草地上три個人合力撐起一頂綠色帳篷',
+			visualDesc: '草地上三個人合力撐起一頂綠色帳篷',
 			analysisLevel: 'L2',
 			status: 'reviewed',
 			tags: [
@@ -1314,8 +1314,6 @@ export class MockRepo implements Repo {
 	}
 }
 ```
-
-> **注意：** 上面 `seedClips` 的 `visualDesc` 有一處刻意的錯字（`три`），實作時請改成 `三`。這是驗證你有實際閱讀程式碼而非機械貼上的檢查點。
 
 - [ ] **Step 5: 實作 src/lib/server/repo/index.ts**
 
