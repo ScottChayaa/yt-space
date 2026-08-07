@@ -252,7 +252,7 @@ clip ── 使用者標記的片段（本系統的第一級公民）
   ├─ ai_raw          AI 原始輸出 JSON 快照（唯讀，供還原）
   ├─ analysis_level  'L0' | 'L2'
   ├─ status          'inbox' | 'analyzing' | 'analyzed' | 'reviewed' | 'failed'
-  ├─ origin          'web' | 'share'（未來加 'pipeline'）
+  ├─ origin          'web' | 'share'（v2 加 'extension' | 'pipeline'）
   └─ created_at
 
 tag ── 標籤與暱稱（合併原 spec 的 entity）
@@ -267,6 +267,13 @@ clip_tag
 
 clip_fts（FTS5 虛擬表，tokenizer = trigram）
   └─ 索引 note + summary + transcript + visual_desc
+
+sb_probe ── storyboard 解析器健康紀錄（見第七節）
+  ├─ id
+  ├─ video_id       被探測的影片（金絲雀探測時為固定的 canary ID）
+  ├─ kind           'real' | 'canary'
+  ├─ result         'ok' | 'no_storyboard' | 'parse_failed' | 'fetch_failed'
+  └─ probed_at
 ```
 
 ### 設計說明
@@ -296,6 +303,8 @@ clip_fts（FTS5 虛擬表，tokenizer = trigram）
 > **一鍵標記 = 記下當下的 `t`，存成 `[max(0, t-20), t+10]`。**
 
 前 20 秒、後 10 秒，因為「發現有趣」的當下，有趣的事通常剛剛才發生。校對時可微調。這讓資料模型只有一種形態，但操作上一鍵仍是一鍵。
+
+**這兩個數字可在設定頁調整**（見第十節）—— 預設值是推論而非實證，不同影片類型的合適值可能不同。
 
 ### 三個入口
 
@@ -482,6 +491,54 @@ YouTube 前端每隔數月改版，`playerStoryboardSpecRenderer` 的欄位名�
 - 抓不到 spec → `video.sb_key` 留 null，退回整片封面 `img.youtube.com/vi/{id}/mqdefault.jpg`
 - UI 提示「無法取得逐段縮圖，可手動補圖」
 - **功能降級，絕不當機**
+- **已存入 R2 的 sprite 完全不受影響**，舊 clip 的縮圖繼續正常顯示；失效只影響「之後新加入的影片」
+
+### 健康偵測與告警
+
+解析器失效必須被**主動察覺**，而不是等使用者發現「怎麼縮圖都變成封面了」。
+
+#### 1. 區分三種失敗（避免誤報）
+
+關鍵在於「抓不到 storyboard」不一定代表解析器壞了 —— 有些影片本來就沒有（過短的影片、直播、剛上傳尚未產生）。因此失敗必須分類：
+
+| `result` | 判斷條件 | 意義 | 是否告警 |
+|---|---|---|---|
+| `ok` | 成功解析出 spec | 正常 | — |
+| `no_storyboard` | watch page 取得成功、頁面結構正常，但**該影片確實沒有** storyboard | 影片本身的特性 | ❌ 靜默降級 |
+| `parse_failed` | watch page 取得成功，但**連預期的頁面結構都找不到** | ⚠️ **解析器可能失效** | ✅ 納入判定 |
+| `fetch_failed` | watch page 根本取不到（網路、被擋、影片已刪） | 環境問題 | ❌ 不計入 |
+
+判定 `no_storyboard` 與 `parse_failed` 的差異，靠檢查頁面上**其他必定存在的錨點**（如 `playabilityStatus`、`lengthSeconds`）：這些都在、只有 storyboard 那段不在 → `no_storyboard`；連這些錨點都消失 → `parse_failed`。
+
+#### 2. 金絲雀探測（canary）
+
+最可靠的判定方式：**固定用一支已知必定有 storyboard 的公開影片**作為探測對象。
+
+- 以 **Cloudflare Cron Triggers**（Workers 免費層支援）每日執行一次
+- 金絲雀影片解析成功 → 解析器健康，真實影片的失敗是個案
+- **金絲雀影片解析失敗 → 100% 是解析器失效**，與個別影片無關
+
+這讓告警幾乎不可能誤報 —— 用一個受控的對照組，把「影片的問題」和「程式的問題」徹底分開。
+
+#### 3. 告警方式
+
+| 情況 | 行為 |
+|---|---|
+| 金絲雀失敗 **1 次** | 記錄，不告警（可能是暫時性網路問題） |
+| 金絲雀**連續失敗 2 次**（即連續兩天） | 🚨 **告警** |
+| 真實影片近 10 次有 ≥ 8 次 `parse_failed` | 🚨 **告警**（在金絲雀跑之前提早發現） |
+
+告警呈現（皆為 $0）：
+
+- **頁首常駐紅色橫幅**：「縮圖服務異常（自 YYYY-MM-DD 起），新影片已退回封面模式。可手動補圖。」
+- **設定頁**顯示健康狀態與最近的探測紀錄，並提供【立即重新探測】
+- 使用者可**手動關閉橫幅**，但狀態恢復正常前，設定頁的警示不消失
+
+不做 email / 推播通知 —— 這是功能降級而非服務中斷，站內提示的強度已足夠，也避免引入額外服務。
+
+#### 4. 恢復
+
+解析器修好（或 YouTube 改回去）後，金絲雀探測成功即自動解除告警。降級期間加入的影片，可在設定頁按【重新抓取缺少的縮圖】批次補抓。
 
 ### 保底：手動補圖
 
@@ -582,6 +639,14 @@ https://www.youtube.com/embed/{id}?start={start}&end={end}&autoplay=1&mute=1&pla
 | `/inbox` | **收集匣** | 待分析／待校對佇列，批次操作 |
 | `/v/[videoId]` | **工作台** | ★ 核心：標記、分析、校對 |
 | `/settings` | **設定** | tag 管理、配額、偏好 |
+
+設定頁包含：
+
+- **預設標記區間** —— 前 `20` 秒 / 後 `10` 秒，可調整（見第五節）
+- **標記時是否自動暫停影片** —— 預設關閉
+- tag 管理（合併、改名、編輯 aliases）
+- 今日 Gemini 配額用量
+- **storyboard 健康狀態**＋【立即重新探測】＋【重新抓取缺少的縮圖】（見第七節）
 
 底部固定導覽列：`🔍 檢索 ・ 📥 Inbox ・ ⚙ 設定`
 
@@ -717,7 +782,7 @@ src/lib/server/repo/
 |---|---|
 | 1 | SvelteKit 骨架 + manifest + 四條路由 + mock repo + 全部 UI 與互動 |
 | 2 | D1 schema + migrations + `d1.ts` + Cloudflare Access |
-| 3 | YouTube metadata（Data API v3）+ storyboard 抓取與 R2 存放 |
+| 3 | YouTube metadata（Data API v3）+ storyboard 抓取與 R2 存放 + **健康偵測（失敗分類、Cron 金絲雀、告警橫幅）** |
 | 4 | Gemini 分析（含 responseSchema、失敗降級、配額顯示） |
 | 5 | 檢索（查詢解析 + FTS5 + 排序）|
 | 6 | Web Share Target + PWA 安裝 |
@@ -736,6 +801,9 @@ Playwright，預設 viewport 使用 `devices['Pixel 7']`，跑在 mock 資料上
 4. 搜尋 → 結果出現 → 點卡片 → iframe `src` 帶正確的 `start`/`end`
 5. 分析失敗（模擬 Gemini 拒絕）→ 正確降級為 L0 並顯示提示
 6. storyboard 抓取失敗 → 正確退回整片封面且不當機
+7. **健康偵測不誤報** —— 模擬 `no_storyboard`（影片本身沒有）連續發生 → **不可告警**
+8. **健康偵測會告警** —— 模擬金絲雀連續 2 次 `parse_failed` → 頁首橫幅出現、設定頁顯示異常
+9. **降級不影響既有資料** —— 解析器失效時，已存 R2 的 sprite 縮圖仍正常顯示
 
 **視覺回歸（screenshot diff）v1 不做。** UI 仍在快速變動的階段導入，會導致測試持續失敗、時間耗費在核可 baseline 而非開發。待 UI 穩定後再加入 `toHaveScreenshot()`，屆時 Playwright 專案已就緒，成本僅數行。
 
@@ -782,7 +850,8 @@ Gemini 免費層的資料**可能被用於改善模型**。使用者已知悉並
 | 認證 | Cloudflare Access + Google IdP | 零程式碼，JWT email 即 `owner_id` |
 | AI | Gemini Flash（`gemini-flash-latest`） | 區間視覺分析 + 查詢解析 |
 | 影片 metadata | YouTube Data API v3（API key） | 不需 OAuth |
-| 縮圖 | YouTube storyboard（⚠️ 非官方）+ 手動上傳 | 必須有降級路徑 |
+| 縮圖 | YouTube storyboard（⚠️ 非官方）+ 手動上傳 | 必須有降級路徑與健康偵測 |
+| 健康探測排程 | Cloudflare Cron Triggers | 免費層支援；每日跑一次金絲雀 |
 | 播放 | YouTube iframe embed（`start`/`end`） | 兼作「短片回放」 |
 | PWA | Web App Manifest + Share Target | Android |
 | 測試 | Playwright（`devices['Pixel 7']`） | E2E；視覺回歸列 v2 |
@@ -797,7 +866,7 @@ Gemini 免費層的資料**可能被用於改善模型**。使用者已知悉並
 - 手機（Android）優先的 PWA，四條路由
 - 三個擷取入口：YT App 分享、截圖分享、站內播放器標記
 - L0（純書籤）與 L2（區間視覺分析）兩層
-- storyboard 縮圖 + 手動補圖（含降級路徑）
+- storyboard 縮圖 + 手動補圖（含降級路徑與健康偵測告警）
 - 人工校對：所有 AI 欄位可編輯、可還原
 - 自然語言檢索 + 就地區間回放
 - Cloudflare Access（Google 登入）
@@ -809,7 +878,7 @@ Gemini 免費層的資料**可能被用於改善模型**。使用者已知悉並
 | 項目 | 排入 | 理由 |
 |---|---|---|
 | 桌機版面 | v2 | 使用者明確指定先不管 PC |
-| Chrome 擴充功能 | v2 | Android Chrome 不支援擴充；YT App 分享已提供等價體驗 |
+| Chrome 擴充功能 | **v2（確定要做）** | 使用者也會在 PC 上看影片，屆時需要 PC 端的一鍵擷取。因為所有資料都在伺服器端，**PC 擷取的 clip 會自動出現在手機上**，校對與觀看仍在手機完成 —— 不需要為此做桌機版面。擴充功能只需 POST `/api/clips`（`origin='extension'`），認證靠已登入的 Access cookie（`credentials: 'include'`），預估一百多行。 |
 | L3 全片掃描 | v2 | 單支 40 分鐘片 ≈ 144K tokens，且與「手動挑橋段」的產品核心不同調 |
 | 上傳實體照片 | v2 | 範圍明確限定為 YouTube 影片畫面 |
 | webm 短預覽檔 | ❌ 不做 | 需下載影片才能產生；iframe 就地播區間已達成相同體驗 |
@@ -824,9 +893,10 @@ Gemini 免費層的資料**可能被用於改善模型**。使用者已知悉並
 ## 十六、待實作時確認的開放項目
 
 - **storyboard spec 的正則寫法與容錯** —— `playerStoryboardSpecRenderer` 的擷取需能容忍 YouTube 前端改版；抓不到時的降級路徑必須有測試覆蓋。
+- **金絲雀影片的選擇** —— 需挑一支「長期存在、不會被刪、確定有 storyboard」的公開影片。候選條件：官方頻道、發布已久、長度中等。選定後寫入設定常數。
 - **Gemini 視覺 prompt 的具體措辭** —— `responseSchema` 的結構已定，但 prompt 如何引導模型產出「可檢索的」而非「文謅謅的」描述，需要實際迭代。
 - **FTS5 trigram 在中文的實際檢索品質** —— 已定案採用 trigram，但需在真實資料上驗證召回率；若不足則 v2 引入 Vectorize。
 - **相關度排序公式的權重** —— tag 命中 / FTS 命中 / `kind` 加權 / 日期距離 的具體係數需調校。
-- **`[t-20, t+10]` 預設區間是否合適** —— 需實際使用後檢驗，可能因影片類型而異，必要時做成設定項。
+- **`[t-20, t+10]` 預設值是否合適** —— 已決定 v1 先採用此值，並在設定頁提供調整（見第十節），因此不是阻塞項；待實際使用後檢驗預設值本身是否需要改。
 - **Cloudflare Access 對 Workers 子網域的實際設定步驟** —— 已確認 `*.pages.dev` 可行；Workers static assets 的設定路徑需實作時確認。
 - **批次分析時同影片多 clip 能否合併為單一 Gemini 請求** —— Gemini 2.5 以上支援單次請求多個影片，但同一影片的多個區間能否一次送出未經驗證。
