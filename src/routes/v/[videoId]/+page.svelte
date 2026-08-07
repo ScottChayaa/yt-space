@@ -2,7 +2,8 @@
 	import ClipRow from '$lib/components/ClipRow.svelte';
 	import Player from '$lib/components/Player.svelte';
 	import Timeline from '$lib/components/Timeline.svelte';
-	import type { PlayerApi } from '$lib/types';
+	import { defaultRange } from '$lib/time';
+	import type { Clip, PlayerApi } from '$lib/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -16,6 +17,28 @@
 		selectedId = id;
 		const clip = clips.find((c) => c.id === id);
 		if (clip) api?.seekTo(clip.startSec);
+	}
+
+	async function markNow() {
+		const { startSec, endSec } = defaultRange(
+			currentTime,
+			data.video.durationSec,
+			data.settings.markBeforeSec,
+			data.settings.markAfterSec
+		);
+
+		const res = await fetch('/api/clips', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ videoId: data.video.id, startSec, endSec, origin: 'web' })
+		});
+		if (!res.ok) return;
+
+		const clip: Clip = await res.json();
+		clips = [...clips, clip].sort((a, b) => a.startSec - b.startSec);
+		selectedId = clip.id;
+
+		if (data.settings.pauseOnMark) api?.pause();
 	}
 </script>
 
@@ -35,6 +58,8 @@
 			<ClipRow {clip} video={data.video} selected={clip.id === selectedId} onselect={select} />
 		{/each}
 	</div>
+
+	<button class="fab" data-testid="mark-now" onclick={markNow}>⬤ 標記此刻</button>
 </section>
 
 <style>
@@ -64,5 +89,20 @@
 		font-size: 0.85rem;
 		color: var(--text-dim);
 		margin: 0.25rem 0;
+	}
+
+	.fab {
+		position: fixed;
+		left: 50%;
+		transform: translateX(-50%);
+		bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 12px);
+		z-index: 40;
+		background: var(--accent);
+		border-color: var(--accent);
+		color: #fff;
+		font-weight: 600;
+		padding: 0.85rem 1.5rem;
+		border-radius: 999px;
+		box-shadow: 0 6px 20px rgb(0 0 0 / 0.4);
 	}
 </style>
