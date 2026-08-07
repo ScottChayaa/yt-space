@@ -1,1 +1,3 @@
-<h1 data-testid="home-title">yt-space</h1>
+<section data-testid="page-search">
+	<h1>檢索</h1>
+</section>
