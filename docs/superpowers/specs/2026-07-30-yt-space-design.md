@@ -2,7 +2,20 @@
 
 > 個人 YouTube Vlog 語意化自然語言檢索系統
 > 建立日期：2026-07-30
-> 狀態：設計確認中（待使用者複審）
+> **狀態：已擱置（2026-08-07），v2 再議**
+
+> ### ⚠️ 本文件已非優先實作目標
+>
+> 2026-08-07 起，優先實作的 v1 改為
+> [`2026-08-07-yt-space-clip-design.md`](2026-08-07-yt-space-clip-design.md)
+> —— 針對**任何人的 YouTube 影片**做片段標記與檢索，手機優先，無本機重運算。
+>
+> 本文件描述的本機 pipeline（ffmpeg 抽幀、whisper.cpp STT、手動上傳 YouTube）
+> 整套**延後至 v2**。屆時它將作為同一個檢索系統的**第二條 ingestion 來源**：
+> 其 `segment` 直接寫入新 spec 的 `clip` 表，以 `origin` 欄位區分，**不需資料遷移**。
+>
+> 以下內容保留原貌供 v2 參考，其中的技術決策（Gemini provider 抽換、
+> 斷點續跑、Cloudflare-native 基礎設施）在新 spec 中仍然適用。
 
 ---
 
