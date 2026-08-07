@@ -30,10 +30,25 @@
 		if (!isFake) post('seekTo', [sec, true]);
 	}
 
+	// YouTube iframe 不提供跨域讀取時間，改以本地計時器推進，精度足以支撐標記
+	// 用途；第二階段可改接 IFrame Player API。計時器按需啟動：每次 playRange 都會
+	// （重新）啟動，pause 後再次 playRange 也能重新推進；fake 模式不建計時器。
+	function startTicker() {
+		if (isFake || ticker) return;
+		ticker = setInterval(() => {
+			currentTime += 0.25;
+			if (endAt !== null && currentTime >= endAt) {
+				pause();
+				endAt = null;
+			}
+		}, 250);
+	}
+
 	function playRange(start: number, end: number) {
 		seekTo(start);
 		if (!isFake) post('playVideo');
 		endAt = end;
+		startTicker();
 	}
 
 	function pause() {
@@ -48,17 +63,8 @@
 		onready?.({ seekTo, playRange, pause });
 	});
 
+	// 元件卸載時清掉殘留的計時器。
 	$effect(() => {
-		if (isFake) return;
-		// YouTube iframe 不提供跨域讀取時間，改以本地計時器推進，
-		// 精度足以支撐標記用途；第二階段可改接 IFrame Player API。
-		ticker = setInterval(() => {
-			currentTime += 0.25;
-			if (endAt !== null && currentTime >= endAt) {
-				pause();
-				endAt = null;
-			}
-		}, 250);
 		return () => {
 			if (ticker) clearInterval(ticker);
 		};
