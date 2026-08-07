@@ -100,9 +100,15 @@ yt-space/
 ```bash
 cd D:/MyDocument/Git/GitHub/yt-space
 pnpm init
-pnpm add -D @sveltejs/kit @sveltejs/vite-plugin-svelte @sveltejs/adapter-cloudflare svelte svelte-check typescript vite vitest @playwright/test
+pnpm add -D @sveltejs/kit @sveltejs/vite-plugin-svelte @sveltejs/adapter-cloudflare svelte svelte-check typescript@^5 vite vitest @playwright/test
 pnpm exec playwright install chromium
+pnpm approve-builds --all
 ```
+
+> `typescript@^5` 必須鎖版：不鎖會裝到 TypeScript 7（原生編譯器版），
+> 與 `svelte-check` 4.x 不相容。
+> `pnpm approve-builds` 是 pnpm 10 必要步驟，否則 esbuild 與 workerd 的
+> postinstall 不會執行。
 
 - [ ] **Step 2: 寫入 package.json 的 scripts 與 type**
 
@@ -142,9 +148,12 @@ export default {
 
 - [ ] **Step 4: 建立 vite.config.ts**
 
+> `defineConfig` 必須從 `vitest/config` 匯入而非 `vite` —— Vite 自己的 `defineConfig`
+> 型別不含 `test` 欄位，用它會讓 `pnpm check` 報型別錯誤。
+
 ```ts
 import { sveltekit } from '@sveltejs/kit/vite';
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
 	plugins: [sveltekit()],
