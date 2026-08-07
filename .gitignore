@@ -32,3 +32,8 @@ Thumbs.db
 
 # Superpowers SDD 工作區（ledger、briefs、review packages）
 .superpowers/
+
+# Playwright
+test-results/
+playwright-report/
+.playwright/
