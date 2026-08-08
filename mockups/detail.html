@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>yt-space · 詳細</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app-main">
+  <div class="topbar">
+    <button class="back" id="backBtn" onclick="history.length>1?history.back():location.href='home.html'"></button>
+    <span class="title" id="vtitle">影片</span>
+    <button class="more" id="moreBtn"></button>
+  </div>
+
+  <!-- 自繪播放器（隱藏 YT 原生控制） -->
+  <div class="player">
+    <div class="stage">
+      <img id="stage-img" src="" alt="">
+      <button class="center-play" id="centerPlay"></button>
+    </div>
+    <div class="pbar">
+      <div class="row">
+        <button class="btn" id="playBtn"></button>
+        <span class="time" id="cur">0:00</span>
+        <div class="track" id="track">
+          <div class="rail"></div>
+          <div class="fill" id="fill" style="width:0%"></div>
+          <div class="head" id="head" style="left:0%"></div>
+        </div>
+        <span class="time" id="dur">0:00</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>我的標記 <span class="count" id="clipCount"></span></h3>
+    <div class="clip-grid" id="clipGrid"></div>
+  </div>
+
+  <button class="mark-now" id="markNow"></button>
+</div>
+
+<div id="nav"></div>
+
+<script src="mock-data.js"></script>
+<script src="app.js"></script>
+<script>
+  document.getElementById('nav').innerHTML = APP.renderNav('home');
+  document.getElementById('backBtn').innerHTML = APP.svg(APP.ICONS.back, 'ic');
+  document.getElementById('moreBtn').innerHTML = APP.svg(APP.ICONS.more, 'ic', true);
+  document.getElementById('centerPlay').innerHTML = APP.svg(APP.ICONS.play, 'ic', true);
+  document.getElementById('playBtn').innerHTML = APP.svg(APP.ICONS.play, 'ic', true);
+  document.getElementById('markNow').innerHTML = APP.svg(APP.ICONS.record, 'ic', true) + ' 標記此刻';
+
+  const params = new URLSearchParams(location.search);
+  const videoId = params.get('v') || 'Ea8ICLXTDaU';
+  const focusClip = params.get('c');
+  const video = M.VIDEOS[videoId];
+  const clips = M.CLIPS.filter(c => c.videoId === videoId).sort((a, b) => a.start - b.start);
+
+  document.getElementById('vtitle').textContent = video.title;
+  document.getElementById('stage-img').src = M.thumbUrl(videoId);
+  document.getElementById('dur').textContent = M.fmtTime(video.duration);
+  document.getElementById('clipCount').textContent = `(${clips.length})`;
+
+  // 進度條上的區間標示（半透明色塊）
+  const track = document.getElementById('track');
+  const D = video.duration;
+  let selectedId = focusClip || (clips[0] && clips[0].id);
+  function drawRegions() {
+    track.querySelectorAll('.region').forEach(e => e.remove());
+    for (const c of clips) {
+      const r = document.createElement('div');
+      r.className = 'region' + (c.id === selectedId ? ' sel' : '');
+      r.style.left = (c.start / D * 100) + '%';
+      r.style.width = ((c.end - c.start) / D * 100) + '%';
+      track.appendChild(r);
+    }
+  }
+  drawRegions();
+
+  // 假播放頭：跳到選定 clip 起點
+  function seekTo(sec) {
+    document.getElementById('cur').textContent = M.fmtTime(sec);
+    document.getElementById('fill').style.width = (sec / D * 100) + '%';
+    document.getElementById('head').style.left = (sec / D * 100) + '%';
+  }
+  function focus(c) { selectedId = c.id; drawRegions(); seekTo(c.start); renderClips(); }
+  if (selectedId) { const c = clips.find(x => x.id === selectedId); if (c) seekTo(c.start); }
+
+  document.getElementById('playBtn').onclick = document.getElementById('centerPlay').onclick =
+    () => alert('（原型）播放器會 seekTo 並播放選定區間 · 使用現有 Player.seekTo/playRange');
+  track.onclick = (e) => {
+    const r = track.getBoundingClientRect();
+    seekTo(Math.round((e.clientX - r.left) / r.width * D));
+  };
+  document.getElementById('markNow').onclick =
+    () => alert('（原型）標記此刻 → 建立 [t−20, t+10] clip → 彈出編輯 sheet');
+
+  // 標記縮圖網格：點=跳轉播放、長按=編輯
+  const grid = document.getElementById('clipGrid');
+  function renderClips() {
+    grid.innerHTML = '';
+    for (const c of clips) {
+      const tile = document.createElement('div');
+      tile.className = 'clip-tile' + (c.id === selectedId ? ' playing' : '');
+      tile.innerHTML = `<img src="${M.thumbUrl(c.videoId)}" alt=""><span class="badge">${M.fmtTime(c.start)}–${M.fmtTime(c.end)}</span>`;
+      APP.bindPress(tile, { onTap: () => focus(c), onHold: () => APP.openSheet(c) });
+      grid.appendChild(tile);
+    }
+  }
+  renderClips();
+</script>
+</body>
+</html>

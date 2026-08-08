@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>yt-space · 標籤</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app-main">
+  <div class="topbar"><span class="title">標籤</span></div>
+
+  <div class="section">
+    <div class="chips" id="tagChips"></div>
+  </div>
+
+  <div class="date-filter">
+    <span style="font-size:.82rem;color:var(--text-dim)">日期</span>
+    <input type="month" id="from">
+    <span class="sep">–</span>
+    <input type="month" id="to">
+    <button class="chip" id="clearDate" style="margin-left:auto">清除</button>
+  </div>
+
+  <div class="result-bar" id="resultBar">選擇標籤以顯示結果</div>
+  <div class="date-group"><div class="tiles" id="results"></div></div>
+  <div class="empty" id="empty" style="display:none">沒有符合的片段</div>
+</div>
+
+<div id="nav"></div>
+
+<script src="mock-data.js"></script>
+<script src="app.js"></script>
+<script>
+  document.getElementById('nav').innerHTML = APP.renderNav('tags');
+
+  const selected = new Set();
+  const chipsEl = document.getElementById('tagChips');
+  M.allTags().forEach(t => {
+    const wrap = document.createElement('span');
+    wrap.innerHTML = APP.tagChip(t, { count: t.count });
+    const el = wrap.firstElementChild;
+    el.onclick = () => {
+      const on = selected.has(t.name);
+      on ? selected.delete(t.name) : selected.add(t.name);
+      el.classList.toggle('sel', !on);
+      render();
+    };
+    chipsEl.appendChild(el);
+  });
+
+  const from = document.getElementById('from'), to = document.getElementById('to');
+  from.onchange = to.onchange = render;
+  document.getElementById('clearDate').onclick = () => { from.value = ''; to.value = ''; render(); };
+
+  function render() {
+    const results = document.getElementById('results');
+    const bar = document.getElementById('resultBar');
+    const empty = document.getElementById('empty');
+    results.innerHTML = '';
+
+    if (selected.size === 0 && !from.value && !to.value) {
+      bar.textContent = '選擇標籤以顯示結果'; empty.style.display = 'none'; return;
+    }
+    let list = M.CLIPS.filter(c => c.status === 'reviewed');
+    if (selected.size) list = list.filter(c => c.tags.some(t => selected.has(t.name)));
+    if (from.value) list = list.filter(c => c.eventDate.slice(0, 7) >= from.value);
+    if (to.value) list = list.filter(c => c.eventDate.slice(0, 7) <= to.value);
+    list.sort((a, b) => b.eventDate.localeCompare(a.eventDate));
+
+    const parts = [];
+    if (selected.size) parts.push([...selected].join('・'));
+    if (from.value || to.value) parts.push(`${from.value || '…'}~${to.value || '…'}`);
+    bar.textContent = `聽懂了：${parts.join('　')}　·　${list.length} 個片段`;
+    empty.style.display = list.length ? 'none' : 'block';
+
+    for (const c of list) {
+      const tags = APP.top2Tags(c).map(t => APP.tagChip(t)).join('');
+      const tile = document.createElement('div');
+      tile.className = 'tile';
+      tile.innerHTML = `<div class="thumb"><img src="${M.thumbUrl(c.videoId)}" alt="${c.summary || '片段縮圖'}" loading="lazy"></div>
+        <div class="tile-tags">${tags}</div>`;
+      tile.onclick = () => location.href = `detail.html?v=${c.videoId}&c=${c.id}`;
+      results.appendChild(tile);
+    }
+  }
+</script>
+</body>
+</html>

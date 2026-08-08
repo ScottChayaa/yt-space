@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>yt-space · 標記代辦清單</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app-main">
+  <div class="topbar"><span class="title">標記代辦清單</span></div>
+
+  <div class="todo-head">
+    <span class="hint">標記後 <b>3 分鐘</b> 自動用 Gemini 分析，之前可取消</span>
+  </div>
+
+  <div id="groups"></div>
+  <div class="empty" id="empty" style="display:none">目前沒有待處理的標記 🎉</div>
+</div>
+
+<div id="nav"></div>
+
+<script src="mock-data.js"></script>
+<script src="app.js"></script>
+<script>
+  document.getElementById('nav').innerHTML = APP.renderNav('todo');
+
+  // 待處理 = inbox / analyzing
+  let pending = M.CLIPS.filter(c => c.status === 'inbox' || c.status === 'analyzing');
+
+  // 依影片分組
+  function groupByVideo(list) {
+    const map = new Map();
+    for (const c of list) {
+      if (!map.has(c.videoId)) map.set(c.videoId, []);
+      map.get(c.videoId).push(c);
+    }
+    return map;
+  }
+
+  const groupsEl = document.getElementById('groups');
+  const rings = []; // {clip, el}
+
+  function render() {
+    groupsEl.innerHTML = '';
+    document.getElementById('empty').style.display = pending.length ? 'none' : 'block';
+    for (const [vid, list] of groupByVideo(pending)) {
+      const v = M.VIDEOS[vid];
+      const g = document.createElement('div'); g.className = 'todo-group';
+      g.innerHTML = `<div class="vhead"><span class="vt">《${v.title}》</span><span class="vc">@${M.CHANNELS[v.channel]} · ${list.length}</span></div>`;
+      for (const c of list) {
+        const item = document.createElement('div'); item.className = 'todo-item';
+        const analyzing = c.status === 'analyzing' || c.countdownSec <= 0;
+        item.innerHTML = `
+          <img src="${M.thumbUrl(c.videoId)}" alt="">
+          <div class="meta">
+            <div class="t">${M.fmtTime(c.start)}–${M.fmtTime(c.end)}</div>
+            <div class="n">${c.note || '(未命名)'}</div>
+          </div>
+          <div class="countdown">
+            <span class="ring ${analyzing ? 'analyzing' : ''}" data-id="${c.id}">${analyzing ? '分析中…' : mmss(c.countdownSec)}</span>
+            <button class="cancel ${analyzing ? 'done' : ''}" data-id="${c.id}">${analyzing ? '處理中' : '取消'}</button>
+          </div>`;
+        groupsEl.appendChild(g);
+        g.appendChild(item);
+      }
+    }
+    // 綁定取消
+    groupsEl.querySelectorAll('.cancel').forEach(btn => {
+      if (btn.classList.contains('done')) return;
+      btn.onclick = () => { pending = pending.filter(c => c.id !== btn.dataset.id); render(); };
+    });
+  }
+  function mmss(s) { const m = Math.floor(s / 60); return `${m}:${String(s % 60).padStart(2, '0')} 後`; }
+
+  render();
+
+  // 每秒倒數
+  setInterval(() => {
+    let changed = false;
+    for (const c of pending) {
+      if (c.status === 'inbox' && c.countdownSec > 0) {
+        c.countdownSec--; changed = true;
+        if (c.countdownSec <= 0) c.status = 'analyzing';
+      }
+    }
+    if (changed) {
+      // 只更新數字，避免整頁重繪打斷點擊
+      for (const c of pending) {
+        const ring = groupsEl.querySelector(`.ring[data-id="${c.id}"]`);
+        if (!ring) continue;
+        const analyzing = c.status === 'analyzing' || c.countdownSec <= 0;
+        ring.textContent = analyzing ? '分析中…' : mmss(c.countdownSec);
+        ring.classList.toggle('analyzing', analyzing);
+        const btn = groupsEl.querySelector(`.cancel[data-id="${c.id}"]`);
+        if (btn && analyzing) { btn.textContent = '處理中'; btn.classList.add('done'); btn.onclick = null; }
+      }
+    }
+  }, 1000);
+</script>
+</body>
+</html>

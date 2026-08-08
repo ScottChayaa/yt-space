@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>yt-space · 首頁</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app-main">
+  <div class="topbar">
+    <div class="search" id="searchBox">
+      <input placeholder="搜尋片段…例：2026 夏天 加勒比海 潛水" onfocus="location.href='tags.html'">
+    </div>
+  </div>
+
+  <div class="grid-scroll" id="grid"></div>
+
+  <!-- immich 懸浮時間軸 -->
+  <div class="scrubber" id="scrubber"></div>
+  <div class="scrubber-bubble" id="scrubber-bubble"></div>
+</div>
+
+<div id="nav"></div>
+
+<script src="mock-data.js"></script>
+<script src="app.js"></script>
+<script>
+  document.getElementById('nav').innerHTML = APP.renderNav('home');
+  document.getElementById('searchBox').insertAdjacentHTML('afterbegin', APP.svg(APP.ICONS.search, 'ic'));
+
+  // 只顯示已完成（reviewed）的 clip，依事件日期新到舊
+  const reviewed = M.CLIPS.filter(c => c.status === 'reviewed')
+    .sort((a, b) => b.eventDate.localeCompare(a.eventDate));
+
+  // 依「年月日」分組
+  const grid = document.getElementById('grid');
+  const groups = [];
+  let lastKey = null, container = null;
+  for (const c of reviewed) {
+    const key = c.eventDate; // 依日分組
+    if (key !== lastKey) {
+      const g = document.createElement('div'); g.className = 'date-group';
+      g.innerHTML = `<h2>${M.fmtDateLabel(c.eventDate)}</h2><div class="tiles"></div>`;
+      grid.appendChild(g);
+      container = g.querySelector('.tiles');
+      groups.push({ key, label: M.fmtMonthLabel(c.eventDate), el: g });
+      lastKey = key;
+    }
+    const tags = APP.top2Tags(c).map(t => APP.tagChip(t)).join('');
+    const tile = document.createElement('div');
+    tile.className = 'tile';
+    tile.innerHTML = `
+      <div class="thumb"><img src="${M.thumbUrl(c.videoId)}" alt="${c.summary || '片段縮圖'}" loading="lazy"></div>
+      <div class="tile-tags">${tags}</div>`;
+    tile.addEventListener('click', () => location.href = `detail.html?v=${c.videoId}&c=${c.id}`);
+    container.appendChild(tile);
+  }
+
+  APP.setupScrubber(groups);
+</script>
+</body>
+</html>
