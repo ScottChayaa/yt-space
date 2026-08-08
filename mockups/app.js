@@ -31,11 +31,14 @@ function kindSvg(kind) {
   return `<svg class="kico" style="color:${k.color}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${k.icon}</svg>`;
 }
 
-/* 標籤 chip HTML（統一產生器）*/
+/* 標籤 chip HTML（統一產生器）；plainHash: 一律用中性 # icon（首頁縮圖標籤）*/
 function tagChip(tag, opts = {}) {
   const cls = ['chip', 'mini', opts.selected ? 'sel' : '', tag.source === 'ai' ? 'ai' : ''].join(' ').trim();
   const count = opts.count != null ? `<span class="n">${opts.count}</span>` : '';
-  return `<span class="${cls}" data-name="${tag.name}">${kindSvg(tag.kind)}<span class="cn">${tag.name}</span>${count}</span>`;
+  const icon = opts.plainHash
+    ? `<svg class="kico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${KIND.topic.icon}</svg>`
+    : kindSvg(tag.kind);
+  return `<span class="${cls}" data-name="${tag.name}">${icon}<span class="cn">${tag.name}</span>${count}</span>`;
 }
 
 /* ───────── 底部導覽（5 項，SVG icon）───────── */
@@ -47,11 +50,15 @@ function renderNav(active) {
     { id: 'settings', href: 'settings.html', ico: 'settings', label: '設定' },
     { id: 'account', href: 'settings.html#account', avatar: 'S', label: '帳號' }
   ];
-  return `<nav class="bottom-nav">${items.map(it => `
-    <a href="${it.href}" class="${active === it.id ? 'active' : ''}">
-      ${it.avatar ? `<span class="avatar">${it.avatar}</span>` : svg(ICONS[it.ico], 'navico')}
-      <span>${it.label}</span>
-    </a>`).join('')}</nav>`;
+  const pending = M.CLIPS.filter(c => c.status === 'inbox' || c.status === 'analyzing').length;
+  return `<nav class="bottom-nav">${items.map(it => {
+    const badge = it.id === 'todo' && pending > 0
+      ? `<span class="nav-badge">${pending > 99 ? '99+' : pending}</span>` : '';
+    const inner = it.avatar ? `<span class="avatar">${it.avatar}</span>` : svg(ICONS[it.ico], 'navico');
+    return `<a href="${it.href}" aria-label="${it.label}" class="${active === it.id ? 'active' : ''}">
+      <span class="nav-ic-wrap">${inner}${badge}</span>
+    </a>`;
+  }).join('')}</nav>`;
 }
 
 /* ───────── 長按偵測（點=tap，長按=hold）───────── */
