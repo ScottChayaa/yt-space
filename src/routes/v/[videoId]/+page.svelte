@@ -1,9 +1,11 @@
 <script lang="ts">
 	import ClipRow from '$lib/components/ClipRow.svelte';
+	import ClipSheet from '$lib/components/ClipSheet.svelte';
 	import Player from '$lib/components/Player.svelte';
 	import Timeline from '$lib/components/Timeline.svelte';
 	import { defaultRange } from '$lib/time';
 	import type { Clip, PlayerApi } from '$lib/types';
+	import type { UpdateClipPatch } from '$lib/server/repo/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -13,10 +15,29 @@
 	let currentTime = $state(0);
 	let api = $state<PlayerApi | null>(null);
 
+	const selected = $derived(clips.find((c) => c.id === selectedId) ?? null);
+
 	function select(id: string) {
 		selectedId = id;
 		const clip = clips.find((c) => c.id === id);
 		if (clip) api?.seekTo(clip.startSec);
+	}
+
+	async function updateSelected(patch: UpdateClipPatch) {
+		if (!selectedId) return;
+		const res = await fetch(`/api/clips/${selectedId}`, {
+			method: 'PATCH',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify(patch)
+		});
+		if (!res.ok) return;
+
+		const updated: Clip = await res.json();
+		clips = clips
+			.map((c) => (c.id === updated.id ? updated : c))
+			.sort((a, b) => a.startSec - b.startSec);
+
+		if (patch.status === 'reviewed') selectedId = null;
 	}
 
 	async function markNow() {
@@ -58,6 +79,17 @@
 			<ClipRow {clip} video={data.video} selected={clip.id === selectedId} onselect={select} />
 		{/each}
 	</div>
+
+	{#if selected}
+		<ClipSheet
+			clip={selected}
+			video={data.video}
+			tags={data.tags}
+			{currentTime}
+			onupdate={updateSelected}
+			onclose={() => (selectedId = null)}
+		/>
+	{/if}
 
 	<button class="fab" data-testid="mark-now" onclick={markNow}>⬤ 標記此刻</button>
 </section>
