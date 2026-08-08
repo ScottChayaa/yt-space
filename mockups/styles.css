@@ -183,7 +183,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .chip.sel .n { color: rgba(255,255,255,0.85); }
 .chip.ai { border-style: dashed; }
 /* 首頁 tile 內的標籤：無框、無底、當作群組的一部分 */
-.tile-tags .chip.mini { background: transparent; border: none; box-shadow: none; padding: 1px 0; color: var(--text-dim); max-width: 100%; }
+.tile-tags .chip.mini { background: transparent; border: none; box-shadow: none; padding: 1px 0; gap: 2px; color: var(--text-dim); max-width: 100%; }
 .tile-tags .chip.mini.ai { border: none; }
 .tile-tags .chip.mini .cn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

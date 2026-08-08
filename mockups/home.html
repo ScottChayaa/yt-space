@@ -47,7 +47,7 @@
       groups.push({ key, label: M.fmtMonthLabel(c.eventDate), el: g });
       lastKey = key;
     }
-    const tags = APP.top2Tags(c).map(t => APP.tagChip(t, { plainHash: true })).join('');
+    const tags = APP.top2Tags(c).map(t => APP.tagChip(t)).join('');
     const tile = document.createElement('div');
     tile.className = 'tile';
     tile.innerHTML = `

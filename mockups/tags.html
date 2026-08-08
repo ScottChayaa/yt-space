@@ -83,7 +83,7 @@
     empty.style.display = list.length ? 'none' : 'block';
 
     for (const c of list) {
-      const tags = APP.top2Tags(c).map(t => APP.tagChip(t, { plainHash: true })).join('');
+      const tags = APP.top2Tags(c).map(t => APP.tagChip(t)).join('');
       const tile = document.createElement('div');
       tile.className = 'tile';
       tile.innerHTML = `<div class="thumb"><img src="${M.thumbUrl(c.videoId)}" alt="${c.summary || '片段縮圖'}" loading="lazy"></div>
