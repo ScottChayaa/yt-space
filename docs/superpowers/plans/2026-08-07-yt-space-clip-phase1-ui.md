@@ -3641,7 +3641,8 @@ git add -A && git commit -m "feat: 新增 PWA manifest 與圖示，宣告 share_
 ## Task 15: 全流程整合測試與收尾
 
 **Files:**
-- Create: `tests/e2e/flow.spec.ts`
+- Create: `tests/e2e/flow.spec.ts`、`tests/e2e/_setup.ts`（共享 fixture）、`src/routes/api/__reset/+server.ts`（測試專用重置端點）
+- Modify: `playwright.config.ts`（`workers: 1`）、`src/lib/server/repo/index.ts`（加 `resetRepo()`）、全部既有 e2e spec 的 import
 - Modify: `README.md`（新建）
 - Test: 全部既有測試
 
@@ -3649,7 +3650,53 @@ git add -A && git commit -m "feat: 新增 PWA manifest 與圖示，宣告 share_
 - Consumes: 前面所有任務
 - Produces: 一條涵蓋「標記 → 校對 → 檢索 → 回放」的端到端測試；`README.md` 記錄如何跑起來
 
-> **注意：** mock repo 是 process 內的單例，測試之間會共用狀態。此測試刻意設計成「只增不減」，不依賴其他測試留下的精確筆數。
+> **注意（測試隔離基建）：** mock repo 是 process 內的單例、e2e 用單一長駐 preview server，若不隔離則
+> (A) 並行 worker 會壓垮該 server（`ERR_EMPTY_RESPONSE`/`ERR_CONNECTION_REFUSED`），
+> (B) 測試間狀態累積會讓 count/order 斷言互相污染。故本階段收尾加入以下隔離基建，讓整套 e2e 可穩定全綠：
+
+- [ ] **Step 0: 加入測試隔離基建**
+
+在 `src/lib/server/repo/index.ts` 加入重置函式（重建單例即重跑種子）：
+
+```ts
+export function resetRepo(): void {
+	instance = new MockRepo();
+}
+```
+
+建立測試專用重置端點 `src/routes/api/__reset/+server.ts`（僅在 `PUBLIC_PLAYER_MODE === 'fake'` 時可用，避免暴露到正式環境）：
+
+```ts
+import { error, json } from '@sveltejs/kit';
+import { env } from '$env/dynamic/public';
+import { resetRepo } from '$lib/server/repo';
+import type { RequestHandler } from './$types';
+
+export const POST: RequestHandler = async () => {
+	if (env.PUBLIC_PLAYER_MODE !== 'fake') error(403, '重置端點僅在測試模式可用');
+	resetRepo();
+	return json({ ok: true });
+};
+```
+
+建立共享 fixture `tests/e2e/_setup.ts`，每個測試前重置狀態：
+
+```ts
+import { test as base, expect } from '@playwright/test';
+
+export const test = base.extend({});
+test.beforeEach(async ({ request }) => {
+	await request.post('/api/__reset');
+});
+export { expect };
+```
+
+在 `playwright.config.ts` 加入 `workers: 1`（序列執行，避免壓垮單一 preview server 且讓重置不會被其他 worker 干擾）。
+
+把全部既有 e2e spec（smoke / nav / studio / mark / review / inbox / search / settings / pwa）與新建的 flow 的 import 由
+`import { expect, test } from '@playwright/test';` 改為 `import { expect, test } from './_setup';`。
+
+> 因每個測試 `beforeEach` 都會重置為乾淨種子，各測試不再依賴他檔或同檔前一個測試留下的狀態；先前為避開污染而做的權宜（Task 9 測試 3 用 900、Task 10/11 的順序無關定位）仍可留著，無害。
 
 - [ ] **Step 1: 寫全流程測試**
 
