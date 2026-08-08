@@ -86,7 +86,13 @@ function setupScrubber(groups) {
     groups.find(x => x.key === t.dataset.key)?.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }));
 
-  let hideTimer = null;
+  let hideTimer = null, barHideTimer = null;
+  // 時間軸平時隱藏，拖曳/滑動時才顯現
+  function flashBar() {
+    bar.classList.add('show');
+    clearTimeout(barHideTimer);
+    barHideTimer = setTimeout(() => { if (!dragging) bar.classList.remove('show'); }, 1100);
+  }
   function showBubble(clientY) {
     let current = groups[0];
     for (const g of groups) if (g.el.getBoundingClientRect().top - 120 <= 0) current = g;
@@ -96,7 +102,7 @@ function setupScrubber(groups) {
     clearTimeout(hideTimer);
     hideTimer = setTimeout(() => bubble.classList.remove('show'), 700);
   }
-  window.addEventListener('scroll', () => showBubble(window.innerHeight * 0.4), { passive: true });
+  window.addEventListener('scroll', () => { flashBar(); showBubble(window.innerHeight * 0.4); }, { passive: true });
 
   let dragging = false;
   function fromPointer(clientY) {
@@ -110,9 +116,9 @@ function setupScrubber(groups) {
     const g = groups.find(x => x.key === nearest.dataset.key);
     if (g) { g.el.scrollIntoView({ block: 'start' }); showBubble(clientY); }
   }
-  bar.addEventListener('pointerdown', (e) => { dragging = true; fromPointer(e.clientY); });
+  bar.addEventListener('pointerdown', (e) => { dragging = true; flashBar(); fromPointer(e.clientY); });
   window.addEventListener('pointermove', (e) => { if (dragging) fromPointer(e.clientY); });
-  window.addEventListener('pointerup', () => { dragging = false; });
+  window.addEventListener('pointerup', () => { dragging = false; flashBar(); });
 }
 
 /* 首頁 tile 用：取 top 2 標籤（human 優先，place/person 優先）*/

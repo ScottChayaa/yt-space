@@ -58,20 +58,20 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .search .ic { color: var(--accent); }
 
 /* ───────── immich 風格日期網格 ───────── */
-.grid-scroll { position: relative; padding-right: 40px; }
-.date-group { padding: 16px 10px 4px; }
-.date-group h2 { margin: 0 0 10px 2px; font-size: 0.92rem; font-weight: 700; color: var(--text); }
-.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.grid-scroll { position: relative; }
+.date-group { padding: 14px 3px 2px; }
+.date-group h2 { margin: 0 0 8px 4px; font-size: 0.92rem; font-weight: 700; color: var(--text); }
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
 
-/* tile = 縮圖 + 下方 top2 標籤（移除左上標題/右下時間）*/
+/* tile = 縮圖 + 下方 top2 標籤，視為一個群組（方角、標籤無框）*/
 .tile { cursor: pointer; }
 .tile .thumb {
   position: relative; aspect-ratio: 1 / 1; overflow: hidden;
-  background: var(--surface-2); border-radius: 10px; box-shadow: var(--shadow);
+  background: var(--surface-2);
 }
 .tile .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .tile:active .thumb { opacity: 0.8; }
-.tile-tags { display: flex; flex-wrap: wrap; gap: 3px; margin: 5px 1px 0; }
+.tile-tags { display: flex; flex-wrap: wrap; gap: 2px 8px; margin: 5px 1px 0; }
 
 /* ───────── immich 懸浮時間軸（刻度）───────── */
 .scrubber {
@@ -79,7 +79,9 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
   width: 40px; z-index: 25;
   display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end;
   padding: 6px 6px;
+  opacity: 0; transition: opacity 0.2s; /* 平時隱藏，滑動/拖曳時才顯現 */
 }
+.scrubber.show { opacity: 1; }
 .scrubber .tick { display: flex; align-items: center; justify-content: flex-end; gap: 5px; cursor: pointer; height: 14px; }
 .scrubber .tick .line { width: 9px; height: 2px; background: #C3C8DA; border-radius: 1px; }
 .scrubber .tick.year .line { width: 15px; height: 2px; background: var(--accent); }
@@ -168,7 +170,9 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .chip.sel .kico { color: #fff !important; }
 .chip.sel .n { color: rgba(255,255,255,0.85); }
 .chip.ai { border-style: dashed; }
-.tile-tags .chip.mini { background: rgba(255,255,255,0.9); border-color: var(--border); max-width: 100%; }
+/* 首頁 tile 內的標籤：無框、無底、當作群組的一部分 */
+.tile-tags .chip.mini { background: transparent; border: none; box-shadow: none; padding: 1px 0; color: var(--text-dim); max-width: 100%; }
+.tile-tags .chip.mini.ai { border: none; }
 .tile-tags .chip.mini .cn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ───────── 代辦清單 ───────── */
