@@ -53,6 +53,14 @@
   from.onchange = to.onchange = render;
   document.getElementById('clearDate').onclick = () => { from.value = ''; to.value = ''; render(); };
 
+  // 從首頁標籤帶入 ?tag= 時預選並直接查詢
+  const preTag = new URLSearchParams(location.search).get('tag');
+  if (preTag) {
+    selected.add(preTag);
+    [...chipsEl.querySelectorAll('.chip')].find(c => c.dataset.name === preTag)?.classList.add('sel');
+    render();
+  }
+
   function render() {
     const results = document.getElementById('results');
     const bar = document.getElementById('resultBar');
