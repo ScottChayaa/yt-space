@@ -3679,14 +3679,21 @@ export const POST: RequestHandler = async () => {
 };
 ```
 
-建立共享 fixture `tests/e2e/_setup.ts`，每個測試前重置狀態：
+建立共享 fixture `tests/e2e/_setup.ts`，每個測試前重置狀態。**必須用 Playwright 的 auto fixture**
+（不能用 module-scope 的 `test.beforeEach` —— 它只綁定呼叫它的檔案，`_setup.ts` 本身無測試，
+不會跨檔生效，導致其他 spec 未重置而互相污染）：
 
 ```ts
 import { test as base, expect } from '@playwright/test';
 
-export const test = base.extend({});
-test.beforeEach(async ({ request }) => {
-	await request.post('/api/__reset');
+export const test = base.extend<{ resetRepo: void }>({
+	resetRepo: [
+		async ({ request }, use) => {
+			await request.post('/api/__reset');
+			await use();
+		},
+		{ auto: true }
+	]
 });
 export { expect };
 ```
