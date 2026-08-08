@@ -10,4 +10,8 @@ export function getRepo(): Repo {
 	return instance;
 }
 
+export function resetRepo(): void {
+	instance = new MockRepo();
+}
+
 export type { Repo } from './types';

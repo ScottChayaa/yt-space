@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './_setup';
 
 test('預設列出所有已完成的片段', async ({ page }) => {
 	await page.goto('/');

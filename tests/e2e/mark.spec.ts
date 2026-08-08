@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './_setup';
 
 test('按下標記此刻會依預設區間建立 clip', async ({ page }) => {
 	await page.goto('/v/dQw4w9WgXcQ');

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './_setup';
 
 test('工作台顯示影片資訊與既有 clip', async ({ page }) => {
 	await page.goto('/v/KUdmrPVssFA');

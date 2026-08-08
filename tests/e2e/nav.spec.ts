@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './_setup';
 
 test('底部導覽可在三個主要畫面間切換', async ({ page }) => {
 	await page.goto('/');

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './_setup';
 
 test('manifest 可取得且欄位正確', async ({ request }) => {
 	const res = await request.get('/manifest.webmanifest');

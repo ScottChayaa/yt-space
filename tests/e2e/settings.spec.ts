@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './_setup';
 
 test('設定頁顯示預設標記區間', async ({ page }) => {
 	await page.goto('/settings');

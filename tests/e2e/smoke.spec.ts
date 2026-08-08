@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './_setup';
 
 test('首頁可以載入', async ({ page }) => {
 	await page.goto('/');

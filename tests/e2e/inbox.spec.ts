@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './_setup';
 
 test('Inbox 依影片分組顯示未完成的 clip', async ({ page }) => {
 	await page.goto('/inbox');

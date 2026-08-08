@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './_setup';
 
 test('點 clip 會打開編輯面板', async ({ page }) => {
 	await page.goto('/v/dQw4w9WgXcQ');
