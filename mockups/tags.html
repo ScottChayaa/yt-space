@@ -33,7 +33,6 @@
     <span id="dpRangeText">選擇起始月</span>
     <button class="dp-clear" id="dpClear">清除</button>
   </div>
-  <div class="dp-hint">點第一下＝起始月，第二下＝結束月（最多 6 個月）</div>
   <div class="dp-years" id="dpYears"></div>
 </div>
 
@@ -154,12 +153,12 @@
     paint();
   }
   function paint() {
-    // 起選後，可選窗＝[start, start+5]；窗外(較晚)禁用
+    // 選了第一個月後，前後超過 6 個月的月份皆禁用
     const limiting = pickStart !== null && pickEnd === null;
     yearsEl.querySelectorAll('.dp-month').forEach(b => {
       const n = +b.dataset.n;
       b.classList.remove('sel', 'in-range', 'disabled');
-      if (limiting && n > pickStart + (MAX - 1)) b.classList.add('disabled');
+      if (limiting && Math.abs(n - pickStart) > MAX - 1) b.classList.add('disabled');
       if (pickStart !== null && pickEnd !== null) {
         if (n === pickStart || n === pickEnd) b.classList.add('sel');
         else if (n > pickStart && n < pickEnd) b.classList.add('in-range');
@@ -167,17 +166,16 @@
         b.classList.add('sel');
       }
     });
-    rangeText.textContent = pickStart === null ? '選擇起始月'
-      : pickEnd === null ? `起：${label(numMonth(pickStart))}　·　請選結束月`
+    rangeText.textContent = pickStart === null ? '選擇月份'
+      : pickEnd === null ? `已選 ${label(numMonth(pickStart))}`
       : `${label(numMonth(pickStart))} – ${label(numMonth(pickEnd))}`;
   }
   function onPick(n) {
     if (pickStart === null || pickEnd !== null) { pickStart = n; pickEnd = null; paint(); return; }
-    if (n < pickStart) { pickStart = n; pickEnd = null; paint(); return; } // 重選起
-    if (n > pickStart + (MAX - 1)) return; // 超過 6 個月，禁用
-    pickEnd = n;
-    paint();
-    setTimeout(() => { applyRange(numMonth(pickStart), numMonth(pickEnd)); closePanel(); }, 180);
+    if (Math.abs(n - pickStart) > MAX - 1) return; // 前後超過 6 個月，禁用
+    const s = Math.min(n, pickStart), e = Math.max(n, pickStart);
+    pickStart = s; pickEnd = e; paint();
+    setTimeout(() => { applyRange(numMonth(s), numMonth(e)); closePanel(); }, 180);
   }
   function openPanel() {
     pickStart = fromM ? monthNum(fromM) : null;
