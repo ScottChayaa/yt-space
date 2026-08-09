@@ -10,7 +10,7 @@
 <div class="app-main">
   <div class="topbar">
     <div class="search" id="searchBox">
-      <input placeholder="搜尋片段…例：2026 夏天 加勒比海 潛水" onfocus="location.href='tags.html'">
+      <input id="searchInput" placeholder="搜尋片段…例：加勒比海 潛水 米粉">
     </div>
   </div>
 
@@ -33,39 +33,56 @@
   const reviewed = M.CLIPS.filter(c => c.status === 'reviewed')
     .sort((a, b) => b.eventDate.localeCompare(a.eventDate));
 
-  // 依「年月」分組
   const grid = document.getElementById('grid');
-  const groups = [];
-  let lastKey = null, container = null, group = null;
-  for (const c of reviewed) {
-    const key = c.eventDate.slice(0, 7); // 依月分組
-    if (key !== lastKey) {
-      const g = document.createElement('div'); g.className = 'date-group';
-      g.innerHTML = `<h2>${M.fmtMonthLabel(c.eventDate)}</h2><div class="month-tags"></div><div class="tiles"></div>`;
-      grid.appendChild(g);
-      container = g.querySelector('.tiles');
-      group = { key, label: M.fmtMonthLabel(c.eventDate), el: g, tagsEl: g.querySelector('.month-tags'), tagMap: new Map() };
-      groups.push(group);
-      lastKey = key;
+  const empty = (() => { const e = document.createElement('div'); e.className = 'empty'; e.textContent = '找不到符合的片段'; e.style.display = 'none'; grid.after(e); return e; })();
+
+  // 關鍵字比對：摘要 / 備註 / 影片標題 / 頻道 / 標籤
+  function matches(c, q) {
+    if (!q) return true;
+    const v = M.videoOf(c);
+    const hay = [c.summary, c.note, v.title, M.channelOf(c), ...c.tags.map(t => t.name)].join(' ').toLowerCase();
+    return q.toLowerCase().split(/\s+/).filter(Boolean).every(w => hay.includes(w));
+  }
+
+  // 依「年月」分組建立網格
+  function render(q = '') {
+    grid.innerHTML = '';
+    const list = reviewed.filter(c => matches(c, q));
+    empty.style.display = list.length ? 'none' : 'block';
+
+    const groups = [];
+    let lastKey = null, container = null, group = null;
+    for (const c of list) {
+      const key = c.eventDate.slice(0, 7);
+      if (key !== lastKey) {
+        const g = document.createElement('div'); g.className = 'date-group';
+        g.innerHTML = `<h2>${M.fmtMonthLabel(c.eventDate)}</h2><div class="month-tags"></div><div class="tiles"></div>`;
+        grid.appendChild(g);
+        container = g.querySelector('.tiles');
+        group = { key, label: M.fmtMonthLabel(c.eventDate), el: g, tagsEl: g.querySelector('.month-tags'), tagMap: new Map() };
+        groups.push(group);
+        lastKey = key;
+      }
+      const tile = document.createElement('div');
+      tile.className = 'tile';
+      tile.innerHTML = `<div class="thumb"><img src="${M.thumbUrl(c.videoId)}" alt="${c.summary || '片段縮圖'}" loading="lazy"></div>`;
+      tile.addEventListener('click', () => location.href = `detail.html?v=${c.videoId}&c=${c.id}`);
+      container.appendChild(tile);
+      for (const t of c.tags) if (!group.tagMap.has(t.name)) group.tagMap.set(t.name, t);
     }
-    // 縮圖（點圖片 → 詳細頁）
-    const tile = document.createElement('div');
-    tile.className = 'tile';
-    tile.innerHTML = `<div class="thumb"><img src="${M.thumbUrl(c.videoId)}" alt="${c.summary || '片段縮圖'}" loading="lazy"></div>`;
-    tile.addEventListener('click', () => location.href = `detail.html?v=${c.videoId}&c=${c.id}`);
-    container.appendChild(tile);
-    // 累積當月標籤
-    for (const t of c.tags) if (!group.tagMap.has(t.name)) group.tagMap.set(t.name, t);
+
+    for (const g of groups) {
+      g.tagsEl.innerHTML = [...g.tagMap.values()].map(t => APP.tagChip(t)).join('');
+      g.tagsEl.querySelectorAll('.chip').forEach(chip =>
+        chip.addEventListener('click', () => location.href = `tags.html?tag=${encodeURIComponent(chip.dataset.name)}`));
+    }
+
+    APP.setupScrubber(groups);
   }
 
-  // 月份標籤橫條（點標籤 → 標籤查詢）
-  for (const g of groups) {
-    g.tagsEl.innerHTML = [...g.tagMap.values()].map(t => APP.tagChip(t)).join('');
-    g.tagsEl.querySelectorAll('.chip').forEach(chip =>
-      chip.addEventListener('click', () => location.href = `tags.html?tag=${encodeURIComponent(chip.dataset.name)}`));
-  }
-
-  APP.setupScrubber(groups);
+  render();
+  // 就地即時篩選（不跳頁）
+  document.getElementById('searchInput').addEventListener('input', (e) => render(e.target.value.trim()));
 </script>
 </body>
 </html>

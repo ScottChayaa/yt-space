@@ -49,9 +49,14 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 /* 搜尋框（靛色底 + accent icon）*/
 .search {
   flex: 1; display: flex; align-items: center; gap: 9px;
-  background: var(--surface-2);
-  border: 1px solid #DDE3FB;
+  background: #FFFFFF;
+  border: 1.5px solid #C3CBF7;
   border-radius: 999px; padding: 10px 15px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(79,70,229,0.15);
 }
 .search input { flex: 1; background: none; border: none; outline: none; color: var(--text); font-size: 0.95rem; }
 .search input::placeholder { color: #9AA0C4; }
