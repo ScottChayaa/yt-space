@@ -20,7 +20,6 @@
     <div class="chips" id="tagChips"></div>
   </div>
 
-  <div class="result-bar" id="resultBar" style="display:none"></div>
   <div class="date-group"><div class="tiles" id="results"></div></div>
   <div class="empty" id="empty" style="display:none">沒有符合的片段</div>
 </div>
@@ -46,9 +45,10 @@
   document.getElementById('dateTrigger').insertAdjacentHTML('afterbegin', APP.svg(APP.ICONS.calendar, 'ic'));
   document.getElementById('dateTrigger').insertAdjacentHTML('beforeend', APP.svg(APP.ICONS.chevronDown, 'ic'));
 
-  const MAX = 6, LS_KEY = 'ytspace_tag_range';
-  const selected = new Set();
+  const MAX = 6, LS_KEY = 'ytspace_tag_range', LS_TAGS = 'ytspace_tag_selected';
+  const selected = new Set(JSON.parse(localStorage.getItem(LS_TAGS) || '[]'));
   const chipsEl = document.getElementById('tagChips');
+  const saveTags = () => localStorage.setItem(LS_TAGS, JSON.stringify([...selected]));
 
   const monthNum = s => { const [y, m] = s.split('-').map(Number); return y * 12 + (m - 1); };
   const numMonth = n => `${Math.floor(n / 12)}-${String(n % 12 + 1).padStart(2, '0')}`;
@@ -87,6 +87,7 @@
     const avail = tagsInRange();
     const names = new Set(avail.map(t => t.name));
     for (const n of [...selected]) if (!names.has(n)) selected.delete(n);
+    saveTags();
     for (const t of avail) {
       const wrap = document.createElement('span');
       wrap.innerHTML = APP.tagChip(t, { count: t.count, selected: selected.has(t.name) });
@@ -95,6 +96,7 @@
         const on = selected.has(t.name);
         on ? selected.delete(t.name) : selected.add(t.name);
         el.classList.toggle('sel', !on);
+        saveTags();
         renderResults();
       };
       chipsEl.appendChild(el);
@@ -102,21 +104,16 @@
   }
   function renderResults() {
     const results = document.getElementById('results');
-    const bar = document.getElementById('resultBar');
     const empty = document.getElementById('empty');
     results.innerHTML = '';
-    if (selected.size === 0) { bar.style.display = 'none'; empty.style.display = 'none'; return; }
+    if (selected.size === 0) { empty.style.display = 'none'; return; }
     let list = M.CLIPS.filter(c => c.status === 'reviewed' && inRange(c.eventDate) && c.tags.some(t => selected.has(t.name)));
     list.sort((a, b) => b.eventDate.localeCompare(a.eventDate));
-    bar.style.display = 'block';
-    bar.textContent = `${[...selected].join('・')}　·　${list.length} 個片段`;
     empty.style.display = list.length ? 'none' : 'block';
     for (const c of list) {
-      const tags = APP.top2Tags(c).map(t => APP.tagChip(t)).join('');
       const tile = document.createElement('div');
       tile.className = 'tile';
-      tile.innerHTML = `<div class="thumb"><img src="${M.thumbUrl(c.videoId)}" alt="${c.summary || '片段縮圖'}" loading="lazy"></div>
-        <div class="tile-tags">${tags}</div>`;
+      tile.innerHTML = `<div class="thumb"><img src="${M.thumbUrl(c.videoId)}" alt="${c.summary || '片段縮圖'}" loading="lazy"></div>`;
       tile.onclick = () => location.href = `detail.html?v=${c.videoId}&c=${c.id}`;
       results.appendChild(tile);
     }
@@ -196,13 +193,13 @@
 
   buildYears();
 
-  /* ── 初始化：?tag= 優先顯示全部；否則讀 localStorage，無則預設近 3 個月 ── */
+  /* ── 初始化 ──
+     ?tag=：改為只選該標籤並顯示全部日期；
+     否則沿用 localStorage 記憶的日期範圍與已選標籤，無則預設近 3 個月 ── */
   const preTag = new URLSearchParams(location.search).get('tag');
   if (preTag) {
-    applyRange('', '');
-    selected.add(preTag);
-    [...chipsEl.querySelectorAll('.chip')].find(c => c.dataset.name === preTag)?.classList.add('sel');
-    renderResults();
+    selected.clear(); selected.add(preTag); saveTags();
+    applyRange('', ''); // renderTags 會標記選取、renderResults 顯示結果
   } else {
     const saved = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
     if (saved) applyRange(saved.from, saved.to);
