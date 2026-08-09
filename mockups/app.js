@@ -16,7 +16,9 @@ const ICONS = {
   play: '<path d="M6 3 20 12 6 21Z"/>',
   pause: '<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>',
   record: '<circle cx="12" cy="12" r="6"/>',
-  close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'
+  close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>',
+  chevronDown: '<path d="m6 9 6 6 6-6"/>'
 };
 // 標籤分類 icon（保留分類意義，改用 SVG + 顏色編碼）
 const KIND = {
