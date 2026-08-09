@@ -60,8 +60,13 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 /* ───────── immich 風格日期網格 ───────── */
 .grid-scroll { position: relative; }
 .date-group { padding: 14px 3px 2px; }
-.date-group h2 { margin: 0 0 8px 4px; font-size: 0.92rem; font-weight: 700; color: var(--text); }
+.date-group h2 { margin: 0 0 6px 4px; font-size: 0.92rem; font-weight: 700; color: var(--text); }
 .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
+
+/* 月份標籤橫條：單行、橫向捲動 */
+.month-tags { display: flex; gap: 6px; overflow-x: auto; padding: 0 4px 8px; scrollbar-width: none; }
+.month-tags::-webkit-scrollbar { display: none; }
+.month-tags .chip { flex: 0 0 auto; }
 
 /* tile = 縮圖 + 下方 top2 標籤，卡片以淡冷白 + 輕陰影浮於底色之上 */
 .tile {

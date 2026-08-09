@@ -33,32 +33,36 @@
   const reviewed = M.CLIPS.filter(c => c.status === 'reviewed')
     .sort((a, b) => b.eventDate.localeCompare(a.eventDate));
 
-  // 依「年月日」分組
+  // 依「年月」分組
   const grid = document.getElementById('grid');
   const groups = [];
-  let lastKey = null, container = null;
+  let lastKey = null, container = null, group = null;
   for (const c of reviewed) {
-    const key = c.eventDate; // 依日分組
+    const key = c.eventDate.slice(0, 7); // 依月分組
     if (key !== lastKey) {
       const g = document.createElement('div'); g.className = 'date-group';
-      g.innerHTML = `<h2>${M.fmtDateLabel(c.eventDate)}</h2><div class="tiles"></div>`;
+      g.innerHTML = `<h2>${M.fmtMonthLabel(c.eventDate)}</h2><div class="month-tags"></div><div class="tiles"></div>`;
       grid.appendChild(g);
       container = g.querySelector('.tiles');
-      groups.push({ key, label: M.fmtMonthLabel(c.eventDate), el: g });
+      group = { key, label: M.fmtMonthLabel(c.eventDate), el: g, tagsEl: g.querySelector('.month-tags'), tagMap: new Map() };
+      groups.push(group);
       lastKey = key;
     }
-    const tags = APP.top2Tags(c).map(t => APP.tagChip(t)).join('');
+    // 縮圖（點圖片 → 詳細頁）
     const tile = document.createElement('div');
     tile.className = 'tile';
-    tile.innerHTML = `
-      <div class="thumb"><img src="${M.thumbUrl(c.videoId)}" alt="${c.summary || '片段縮圖'}" loading="lazy"></div>
-      <div class="tile-tags">${tags}</div>`;
-    // 點圖片 → 詳細頁
-    tile.querySelector('.thumb').addEventListener('click', () => location.href = `detail.html?v=${c.videoId}&c=${c.id}`);
-    // 點標籤 → 標籤查詢
-    tile.querySelectorAll('.tile-tags .chip').forEach(chip =>
-      chip.addEventListener('click', () => location.href = `tags.html?tag=${encodeURIComponent(chip.dataset.name)}`));
+    tile.innerHTML = `<div class="thumb"><img src="${M.thumbUrl(c.videoId)}" alt="${c.summary || '片段縮圖'}" loading="lazy"></div>`;
+    tile.addEventListener('click', () => location.href = `detail.html?v=${c.videoId}&c=${c.id}`);
     container.appendChild(tile);
+    // 累積當月標籤
+    for (const t of c.tags) if (!group.tagMap.has(t.name)) group.tagMap.set(t.name, t);
+  }
+
+  // 月份標籤橫條（點標籤 → 標籤查詢）
+  for (const g of groups) {
+    g.tagsEl.innerHTML = [...g.tagMap.values()].map(t => APP.tagChip(t)).join('');
+    g.tagsEl.querySelectorAll('.chip').forEach(chip =>
+      chip.addEventListener('click', () => location.href = `tags.html?tag=${encodeURIComponent(chip.dataset.name)}`));
   }
 
   APP.setupScrubber(groups);
