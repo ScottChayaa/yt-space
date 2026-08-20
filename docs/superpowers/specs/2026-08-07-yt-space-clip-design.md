@@ -610,6 +610,41 @@ https://www.youtube.com/embed/{id}?start={start}&end={end}&autoplay=1&mute=1&pla
 
 這讓使用者在搜不到東西時，能立即分辨是「Gemini 解析錯誤」還是「資料庫確實沒有」，並可直接手動修正解析結果重新搜尋。
 
+### 規模化：日期範圍無上限（原型的 6 個月上限取消）
+
+標籤頁的日期範圍**不設上限**（原型階段曾暫定 6 個月，僅為避免標籤列過載，非效能限制）。要讓「無上限」在資料量成長（例如單人達 10 萬筆 clip）時仍維持毫秒級體驗，設計上遵守一個原則：**畫面上任何動作都不掃全量，只碰「一頁」或「一張彙總」**。三項機制：
+
+1. **結果 keyset 分頁** —— 結果縮圖不一次全撈，一次一頁（預設 50 筆），滑到底再載下一頁。游標用「上一頁最後一筆的 `event_date`（+ `id` 破平手）」，`WHERE (event_date, id) < (?, ?) ORDER BY event_date DESC LIMIT 50`，走 `clip(owner_id, event_date)` 索引，翻到很後面也一樣快。避免 `OFFSET`（越後面越慢）。
+
+2. **標籤列改讀彙總表 `tag_month_agg`** —— 「當期標籤」若每次翻全量 `clip_tag` 來數，成本隨 clip 數線性成長。改為維護一張彙總表，在 clip 進入/離開 `reviewed` 時增減計數：
+
+   ```
+   tag_month_agg
+     ├─ owner_id
+     ├─ ym            事件月份 'YYYY-MM'（取自 clip.event_date）
+     ├─ tag_id
+     ├─ count         該月該標籤的 reviewed clip 數
+     └─ PRIMARY KEY (owner_id, ym, tag_id)
+   ```
+
+   任意日期範圍的標籤列 = 對區間內月份做 `SUM(count) GROUP BY tag_id`，讀取量僅「月數 × 標籤數」，與 clip 總數脫鉤。索引：`tag_month_agg(owner_id, ym)`。
+
+3. **標籤列 top-N** —— 標籤依 `SUM(count)` 取前 N（預設 30），其餘「顯示更多」展開，避免 DOM 與視覺過載。
+
+有這三項後，開頁、拉時間軸、選標籤都只碰一頁結果或一張彙總，故日期範圍可無上限。
+
+### 多租戶下的規模天花板（開放他人使用時）
+
+查詢隔離沒問題（每條查詢與索引皆以 `owner_id` 起頭，A 用戶資料量不拖慢 B）。真正的天花板是**容量與計費**，非查詢速度：
+
+- **單庫容量**：D1 單一資料庫約 10GB 上限、帳號另有總量上限（FTS5 trigram 索引是主要占用）。多名重度用戶逼近上限時，**依 `owner_id` 分片為多個 D1 資料庫**（資料模型不變）。
+- **計費/併發**：`rows_read`、儲存為帳號共用；讀多可加 **D1 read replication（免費、同計費）**，量大再上 Workers Paid（$5/月）。
+- **FTS 膨脹**：必要時對超長 `transcript` 改用 external-content FTS 或不全量索引。
+
+這些屬營運階段決策，皆不需變更資料模型，非 v1 阻塞項。
+
+> 備註（勘誤）：本文件第六節提到「Durable Objects 需 Workers Paid」已過時 —— Cloudflare 自 2025-04 起 SQLite-backed DO 於免費方案亦可用。惟本系統的檢索為跨實體關聯查詢，**D1 仍是正解，不採用 DO**。
+
 ---
 
 ## 九、認證與多租戶
