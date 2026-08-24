@@ -17,7 +17,7 @@
   <!-- 自繪播放器（隱藏 YT 原生控制） -->
   <div class="player">
     <div class="stage">
-      <img id="stage-img" src="" alt="">
+      <div id="stage-img" class="sb-frame" role="img" aria-label="播放畫面"></div>
       <button class="center-play" id="centerPlay"></button>
     </div>
     <div class="pbar">
@@ -44,6 +44,7 @@
 
 <div id="nav"></div>
 
+<script src="storyboard.js"></script>
 <script src="mock-data.js"></script>
 <script src="app.js"></script>
 <script>
@@ -61,7 +62,6 @@
   const clips = M.CLIPS.filter(c => c.videoId === videoId).sort((a, b) => a.start - b.start);
 
   document.getElementById('vtitle').textContent = video.title;
-  document.getElementById('stage-img').src = M.thumbUrl(videoId);
   document.getElementById('dur').textContent = M.fmtTime(video.duration);
   document.getElementById('clipCount').textContent = `(${clips.length})`;
 
@@ -82,12 +82,15 @@
   drawRegions();
 
   // 假播放頭：跳到選定 clip 起點
+  const stage = document.getElementById('stage-img');
   function seekTo(sec) {
     document.getElementById('cur').textContent = M.fmtTime(sec);
+    stage.style.cssText = M.thumbStyle(videoId, sec);
     document.getElementById('fill').style.width = (sec / D * 100) + '%';
     document.getElementById('head').style.left = (sec / D * 100) + '%';
   }
   function focus(c) { selectedId = c.id; drawRegions(); seekTo(c.start); renderClips(); }
+  seekTo(0);
   if (selectedId) { const c = clips.find(x => x.id === selectedId); if (c) seekTo(c.start); }
 
   document.getElementById('playBtn').onclick = document.getElementById('centerPlay').onclick =
@@ -106,7 +109,7 @@
     for (const c of clips) {
       const tile = document.createElement('div');
       tile.className = 'clip-tile' + (c.id === selectedId ? ' playing' : '');
-      tile.innerHTML = `<img src="${M.thumbUrl(c.videoId)}" alt=""><span class="badge">${M.fmtTime(c.start)}–${M.fmtTime(c.end)}</span>`;
+      tile.innerHTML = `<div class="sb-frame" style="${M.thumbStyle(c.videoId, c.start)}" role="img" aria-label="片段縮圖"></div><span class="badge">${M.fmtTime(c.start)}–${M.fmtTime(c.end)}</span>`;
       APP.bindPress(tile, { onTap: () => focus(c), onHold: () => APP.openSheet(c) });
       grid.appendChild(tile);
     }

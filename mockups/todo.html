@@ -20,6 +20,7 @@
 
 <div id="nav"></div>
 
+<script src="storyboard.js"></script>
 <script src="mock-data.js"></script>
 <script src="app.js"></script>
 <script>
@@ -52,7 +53,7 @@
         const item = document.createElement('div'); item.className = 'todo-item';
         const analyzing = c.status === 'analyzing' || c.countdownSec <= 0;
         item.innerHTML = `
-          <img src="${M.thumbUrl(c.videoId)}" alt="">
+          <div class="sb-frame" style="${M.thumbStyle(c.videoId, c.start)}" role="img" aria-label="片段縮圖"></div>
           <div class="meta">
             <div class="t">${M.fmtTime(c.start)}–${M.fmtTime(c.end)}</div>
             <div class="n">${c.note || '(未命名)'}</div>

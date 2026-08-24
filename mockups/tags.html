@@ -37,6 +37,7 @@
 
 <div id="nav"></div>
 
+<script src="storyboard.js"></script>
 <script src="mock-data.js"></script>
 <script src="app.js"></script>
 <script>
@@ -113,7 +114,7 @@
     for (const c of list) {
       const tile = document.createElement('div');
       tile.className = 'tile';
-      tile.innerHTML = `<div class="thumb"><img src="${M.thumbUrl(c.videoId)}" alt="${c.summary || '片段縮圖'}" loading="lazy"></div>`;
+      tile.innerHTML = `<div class="thumb"><div class="sb-frame" style="${M.thumbStyle(c.videoId, c.start)}" role="img" aria-label="${c.summary || '片段縮圖'}"></div></div>`;
       tile.onclick = () => location.href = `detail.html?v=${c.videoId}&c=${c.id}`;
       results.appendChild(tile);
     }
