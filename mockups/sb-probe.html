@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>storyboard 探測工具</title>
+<style>
+  body { font: 14px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace; margin: 16px; max-width: 1000px; }
+  label { display: block; margin: 10px 0 2px; font-weight: bold; }
+  input[type=text] { width: 100%; padding: 6px; font: inherit; }
+  button { padding: 6px 14px; font: inherit; margin-top: 10px; }
+  table { border-collapse: collapse; margin: 6px 0; }
+  th, td { border: 1px solid #ccc; padding: 2px 8px; text-align: right; }
+  th { background: #eee; }
+  tr.pick td { background: #ffd; font-weight: bold; }
+  .url { word-break: break-all; background: #f4f4f4; padding: 8px; border: 1px solid #ddd; }
+  .err { color: #b00; }
+  .ok { color: #060; }
+  h3 { margin: 18px 0 4px; font-size: 14px; }
+  #frame { border: 1px solid #999; }
+  #sheet { max-width: 100%; border: 1px solid #999; display: block; }
+  .hint { color: #666; font-weight: normal; font-size: 12px; }
+</style>
+</head>
+<body>
+<h2>storyboard 探測工具</h2>
+<p class="hint">貼 YouTube 連結（含 <code>?t=</code> 會自動帶入時間），或只貼 videoId。</p>
+
+<label>YouTube 連結 / videoId</label>
+<input type="text" id="src" value="https://youtu.be/St9CNdEFytI?si=B1HzsF81U8oUl6_z&amp;t=226">
+
+<label>時間點 <span class="hint">秒數或 m:ss / h:mm:ss</span></label>
+<input type="text" id="time" value="226">
+
+<label>畫質層級 <span class="hint">留空 = 自動挑 L3</span></label>
+<input type="text" id="lv" value="">
+
+<button id="go">查詢</button>
+<span id="status"></span>
+
+<div id="out"></div>
+
+<script src="storyboard.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+
+// 從各種 YouTube 網址形式取出 videoId
+function parseVideoId(s) {
+  s = s.trim();
+  if (/^[\w-]{11}$/.test(s)) return s;
+  try {
+    const u = new URL(s.startsWith('http') ? s : 'https://' + s);
+    if (u.hostname === 'youtu.be') return u.pathname.slice(1).split('/')[0] || null;
+    if (u.searchParams.get('v')) return u.searchParams.get('v');
+    const m = u.pathname.match(/\/(embed|shorts|live|v)\/([\w-]{11})/);
+    if (m) return m[2];
+  } catch {}
+  return null;
+}
+
+// ?t=226 / ?t=3m46s / ?start=226
+function parseTimeParam(s) {
+  try {
+    const u = new URL(s.startsWith('http') ? s : 'https://' + s);
+    const raw = u.searchParams.get('t') || u.searchParams.get('start');
+    if (!raw) return null;
+    if (/^\d+s?$/.test(raw)) return parseInt(raw, 10);
+    const m = raw.match(/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/);
+    if (m) return (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0);
+  } catch {}
+  return null;
+}
+
+// "226" / "3:46" / "1:02:03" → 秒
+function parseTime(s) {
+  s = s.trim();
+  if (/^\d+(\.\d+)?$/.test(s)) return parseFloat(s);
+  const p = s.split(':').map(Number);
+  if (p.some(Number.isNaN)) return NaN;
+  return p.reduce((acc, n) => acc * 60 + n, 0);
+}
+
+const fmt = (t) => {
+  const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = Math.floor(t % 60);
+  return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0');
+};
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// 連結欄位變動時自動帶入時間
+$('src').addEventListener('change', () => {
+  const t = parseTimeParam($('src').value);
+  if (t !== null) $('time').value = String(t);
+});
+
+async function run() {
+  const out = $('out'), status = $('status');
+  out.innerHTML = '';
+  const videoId = parseVideoId($('src').value);
+  const t = parseTime($('time').value);
+  if (!videoId) { out.innerHTML = '<p class="err">無法從輸入內容解析出 videoId</p>'; return; }
+  if (Number.isNaN(t)) { out.innerHTML = '<p class="err">時間點格式無法解析</p>'; return; }
+
+  status.textContent = ' 抓取中…';
+  let data;
+  try {
+    const res = await fetch('/api/spec?v=' + encodeURIComponent(videoId));
+    // mockups/ 目錄同時被兩台伺服器服務：npx serve（8231，只有靜態檔）與 sb-probe.mjs（8232，有 /api/spec）。
+    // 開錯那台時 /api/spec 會回靜態伺服器的 HTML 404 頁，直接 res.json() 會炸在 "Unexpected token '<'"。
+    const ct = res.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+      status.textContent = '';
+      out.innerHTML =
+        '<p class="err">這個頁面必須由 sb-probe 伺服器開啟，目前開在 port ' +
+        esc(location.port || '(預設)') + '，它沒有 /api/spec 這條路由。</p>' +
+        '<p>請改開 <a href="http://localhost:8232/sb-probe.html">http://localhost:8232/sb-probe.html</a>' +
+        '（先執行 <code>node mockups/sb-probe.mjs</code>）</p>' +
+        '<p class="hint">/api/spec 回了 ' + res.status + ' ' + esc(ct) + '，不是 JSON。</p>';
+      return;
+    }
+    data = await res.json();
+  } catch (e) {
+    status.textContent = '';
+    out.innerHTML = '<p class="err">請求失敗：' + esc(e) + '</p>' +
+      '<p class="hint">若訊息是「Failed to fetch」，多半是 sb-probe 伺服器沒開：<code>node mockups/sb-probe.mjs</code></p>';
+    return;
+  }
+  status.textContent = '';
+
+  if (data.result !== 'ok') {
+    const why = {
+      video_unavailable: '影片不存在／私人／已刪除／地區限制 —— 是輸入的影片有問題，不是解析器壞了。正式版不可據此發告警。',
+      no_storyboard: '影片正常，但本身沒有 storyboard（過短、直播中、或剛上傳尚未產生）→ 正式版應靜默降級成封面圖',
+      parse_failed: '連 videoDetails / playabilityStatus 錨點都撈不到 → 頁面結構變了，解析器失效，正式版應觸發告警',
+      fetch_failed: 'watch page 抓取失敗（網路或被擋）'
+    }[data.result] || '';
+    out.innerHTML = '<p class="err">result = ' + esc(data.result) + '</p><p>' + esc(why) + '</p>' +
+      '<pre>' + esc(JSON.stringify(data, null, 2)) + '</pre>';
+    return;
+  }
+
+  const spec = SB.parseStoryboardSpec(data.spec);
+  if (!spec) {
+    out.innerHTML = '<p class="err">spec 抓到了但解析失敗</p><div class="url">' + esc(data.spec) + '</div>';
+    return;
+  }
+
+  const want = $('lv').value.trim() === '' ? 3 : Number($('lv').value);
+  const level = spec.levels.find((l) => l.level === want && l.intervalMs > 0) || SB.pickLevel(spec);
+  const pos = SB.frameAt(level, t);
+  const url = SB.sheetUrl(spec, level, pos.sheetIndex);
+  const frameIndex = Math.min(Math.floor(t / (level.intervalMs / 1000)), level.frameCount - 1);
+  const actualT = frameIndex * level.intervalMs / 1000;
+
+  const rows = spec.levels.map((l) => {
+    const usable = l.intervalMs > 0;
+    const cells = [
+      'L' + l.level,
+      l.width + '×' + l.height,
+      l.frameCount,
+      l.cols + '×' + l.rows,
+      usable ? (l.intervalMs / 1000) + 's' : '—',
+      usable ? Math.ceil(l.frameCount / (l.cols * l.rows)) : '—'
+    ];
+    return '<tr class="' + (l === level ? 'pick' : '') + '">' +
+      cells.map((c) => '<td>' + c + '</td>').join('') + '</tr>';
+  }).join('');
+
+  out.innerHTML = `
+    <h3>影片</h3>
+    <div>videoId = <b>${esc(data.videoId)}</b>　片長 = ${data.duration ? fmt(data.duration) + ' (' + data.duration + 's)' : '?'}</div>
+    <div>${esc(data.title || '')}</div>
+
+    <h3>spec 原字串 <span class="hint">（模板，不是可開的網址：路徑含 $L / $N，各層參數以 | 分隔）</span></h3>
+    <div class="url">${esc(data.spec)}</div>
+
+    <h3>層級</h3>
+    <table><tr><th>層</th><th>每格</th><th>總格數</th><th>排列</th><th>取樣間隔</th><th>張數</th></tr>${rows}</table>
+
+    <h3>定位</h3>
+    <div>要求 t = <b>${t}s</b> (${fmt(t)})　→　第 <b>${frameIndex}</b> 格　→　實際畫面約 <b>${actualT}s</b> (${fmt(actualT)})　<span class="hint">誤差 ${(t - actualT).toFixed(1)}s</span></div>
+    <div>第 <b>M${pos.sheetIndex}</b> 張的 第 ${pos.row} 列 第 ${pos.col} 行（0-based）</div>
+
+    <h3>完整 sheet 網址 <span class="hint">（$L→${level.level}、$N→M${pos.sheetIndex}、補上該層 sigh，這個可以直接開）</span></h3>
+    <div class="url"><a href="${esc(url)}" target="_blank" rel="noopener">${esc(url)}</a></div>
+    <div id="probe"></div>
+
+    <h3>切出來的縮圖 <span class="hint">${level.width}×${level.height}</span></h3>
+    <div id="frame" style="width:${level.width}px;height:${level.height}px;${SB.frameStyle(spec, t)}"></div>
+
+    <h3>整張 sheet <span class="hint">（對照用，黃框為上面那一格）</span></h3>
+    <div style="position:relative;display:inline-block">
+      <img id="sheet" src="${esc(url)}" alt="storyboard sheet">
+      <div style="position:absolute;outline:3px solid #fc0;outline-offset:-3px;
+        left:${pos.col / level.cols * 100}%;top:${pos.row / level.rows * 100}%;
+        width:${100 / level.cols}%;height:${100 / level.rows}%"></div>
+    </div>`;
+
+  // 實測這個網址真的載得起來
+  const img = new Image();
+  img.onload = () => $('probe').innerHTML = '<span class="ok">✓ 載入成功：' + img.naturalWidth + '×' + img.naturalHeight + '</span>';
+  img.onerror = () => $('probe').innerHTML = '<span class="err">✗ 載入失敗（多半是簽章過期 → 403，重抓 spec 即可）</span>';
+  img.src = url;
+}
+
+$('go').onclick = run;
+$('src').addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
+$('time').addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
+run();
+</script>
+</body>
+</html>

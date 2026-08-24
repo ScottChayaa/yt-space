@@ -3,8 +3,14 @@
   "configurations": [
     {
       "name": "mockups",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8231", "--directory", "mockups"],
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "--yes",
+        "serve",
+        "mockups",
+        "-l",
+        "8231"
+      ],
       "port": 8231
     }
   ]
