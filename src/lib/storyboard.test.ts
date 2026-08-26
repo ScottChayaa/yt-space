@@ -89,6 +89,19 @@ describe('frameAt', () => {
 		expect(frameAt(l3, 9)).toMatchObject({ sheetIndex: 1, col: 0, row: 0 });
 	});
 
+	// 取最近的一格，不是之前的一格。對照 YouTube 播放器 hover 預覽驗證過的規則。
+	it('t=4.6 取最近的第 5 格，而不是無條件捨去的第 4 格', () => {
+		expect(frameAt(l3, 4.6)).toMatchObject({ sheetIndex: 0, col: 2, row: 1 });
+	});
+
+	it('t=4.4 仍落在第 4 格', () => {
+		expect(frameAt(l3, 4.4)).toMatchObject({ sheetIndex: 0, col: 1, row: 1 });
+	});
+
+	it('接近下一張 sheet 時提前跨過去（t=8.7 → 第 9 格）', () => {
+		expect(frameAt(l3, 8.7)).toMatchObject({ sheetIndex: 1, col: 0, row: 0 });
+	});
+
 	it('超過 frameCount 時夾到最後一格', () => {
 		expect(frameAt(l3, 9999).sheetIndex).toBe(2);
 		expect(frameAt(l3, 9999).col).toBe(0);

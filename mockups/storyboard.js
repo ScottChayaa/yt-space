@@ -34,9 +34,11 @@ function pickLevel(spec, preferred = 3) {
   return usable.find((l) => l.level === preferred) || usable[usable.length - 1];
 }
 
+// 取最近的一格（不是之前的一格）—— 對照 YouTube 播放器 hover 預覽驗證過，
+// 理由見 src/lib/storyboard.ts 的註解。
 function frameAt(level, t) {
   const perSheet = level.cols * level.rows;
-  const raw = Math.floor(Math.max(0, t) / (level.intervalMs / 1000));
+  const raw = Math.round(Math.max(0, t) / (level.intervalMs / 1000));
   const frameIndex = Math.max(0, Math.min(raw, level.frameCount - 1));
   const sheetIndex = Math.floor(frameIndex / perSheet);
   const posInSheet = frameIndex % perSheet;
