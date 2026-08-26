@@ -3,36 +3,53 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>yt-space · 標籤</title>
+<title>yt-space · 查詢</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <div class="app-main">
-  <!-- 頂列：日期範圍觸發鈕（自訂月份選擇器）-->
-  <div class="topbar">
-    <button class="date-trigger" id="dateTrigger">
-      <span class="tlabel" id="dateLabel">全部日期</span>
-    </button>
-    <button class="date-clear" id="clearDate" aria-label="清除日期"></button>
+  <div class="topbar"><span class="title">查詢</span></div>
+
+  <!-- 兩種查詢法 -->
+  <div class="qtabs">
+    <button id="tabTag" class="on">標籤查詢</button>
+    <button id="tabText">文字查詢</button>
   </div>
 
-  <div class="section">
-    <div class="chips" id="tagChips"></div>
+  <!-- ── 標籤查詢：選時間 → 選標籤 → 確認查詢 ── -->
+  <div id="paneTag">
+    <div class="qstep">
+      <div class="st"><b>1</b> 選擇時間（只查該月含以前）</div>
+      <button class="date-trigger" id="tagDate"><span class="tlabel" id="tagDateLabel">全部日期</span></button>
+    </div>
+    <div class="qstep">
+      <div class="st"><b>2</b> 點選想查的標籤（可多選，左右滑動看更多）</div>
+    </div>
+    <div class="tag-carousel" id="tagCarousel"></div>
+    <button class="qgo" id="goTag" disabled>確認查詢</button>
   </div>
 
-  <div class="date-group"><div class="tiles" id="results"></div></div>
-  <div class="empty" id="empty" style="display:none">沒有符合的片段</div>
-</div>
-
-<!-- 自訂日期選擇面板 -->
-<div class="dp-backdrop" id="dpBackdrop"></div>
-<div class="dp-panel" id="dpPanel">
-  <div class="handle"></div>
-  <div class="dp-head">
-    <span id="dpRangeText">選擇起始月</span>
-    <button class="dp-clear" id="dpClear">清除</button>
+  <!-- ── 文字查詢：關鍵字／語意 → 選時間 → 確認查詢 ── -->
+  <div id="paneText" style="display:none">
+    <div class="qstep">
+      <div class="st"><b>1</b> 輸入關鍵字，或用一句話描述（語意查詢）</div>
+      <div class="search" id="textBox">
+        <input id="textInput" placeholder="例：加勒比海夜潛看到的大蝦">
+      </div>
+    </div>
+    <div class="qstep">
+      <div class="st"><b>2</b> 選擇時間（只查該月含以前）</div>
+      <button class="date-trigger" id="textDate"><span class="tlabel" id="textDateLabel">全部日期</span></button>
+    </div>
+    <button class="qgo" id="goText" disabled>確認查詢</button>
   </div>
-  <div class="dp-years" id="dpYears"></div>
+
+  <!-- ── 查詢結果（按下確認才出現）── -->
+  <div id="resultWrap" style="display:none">
+    <div class="result-bar" id="resultBar"></div>
+    <div class="date-group"><div class="tiles" id="results"></div></div>
+    <div class="empty" id="empty" style="display:none">沒有符合的片段</div>
+  </div>
 </div>
 
 <div id="nav"></div>
@@ -42,75 +59,84 @@
 <script src="app.js"></script>
 <script>
   document.getElementById('nav').innerHTML = APP.renderNav('tags');
-  document.getElementById('clearDate').innerHTML = APP.svg(APP.ICONS.close, 'ic');
-  document.getElementById('dateTrigger').insertAdjacentHTML('afterbegin', APP.svg(APP.ICONS.calendar, 'ic'));
-  document.getElementById('dateTrigger').insertAdjacentHTML('beforeend', APP.svg(APP.ICONS.chevronDown, 'ic'));
-
-  const MAX = 6, LS_KEY = 'ytspace_tag_range', LS_TAGS = 'ytspace_tag_selected';
-  const selected = new Set(JSON.parse(localStorage.getItem(LS_TAGS) || '[]'));
-  const chipsEl = document.getElementById('tagChips');
-  const saveTags = () => localStorage.setItem(LS_TAGS, JSON.stringify([...selected]));
-
-  const monthNum = s => { const [y, m] = s.split('-').map(Number); return y * 12 + (m - 1); };
-  const numMonth = n => `${Math.floor(n / 12)}-${String(n % 12 + 1).padStart(2, '0')}`;
-  const label = s => { const [y, m] = s.split('-'); return `${y}年${+m}月`; };
-
-  // 目前套用的範圍（字串 'YYYY-MM' 或 ''）
-  let fromM = '', toM = '';
-
-  // 資料涵蓋的年份範圍
-  const reviewedMonths = M.CLIPS.filter(c => c.status === 'reviewed').map(c => c.eventDate.slice(0, 7));
-  const minM = reviewedMonths.reduce((a, b) => a < b ? a : b);
-  const maxM = reviewedMonths.reduce((a, b) => a > b ? a : b);
-  const minYear = +minM.slice(0, 4), maxYear = +maxM.slice(0, 4);
-
-  function inRange(dateISO) {
-    const m = dateISO.slice(0, 7);
-    if (fromM && m < fromM) return false;
-    if (toM && m > toM) return false;
-    return true;
+  document.getElementById('textBox').insertAdjacentHTML('afterbegin', APP.svg(APP.ICONS.search, 'ic'));
+  for (const id of ['tagDate', 'textDate']) {
+    const el = document.getElementById(id);
+    el.insertAdjacentHTML('afterbegin', APP.svg(APP.ICONS.calendar, 'ic'));
+    el.insertAdjacentHTML('beforeend', APP.svg(APP.ICONS.chevronDown, 'ic'));
   }
 
-  /* ── 標籤（依日期範圍）── */
-  function tagsInRange() {
+  const REVIEWED = M.CLIPS.filter(c => c.status === 'reviewed');
+  const selected = new Set();
+  let tagUpTo = '', textUpTo = '';   // 截止月份（'' = 全部日期）；只查該月（含）以前
+
+  const upTo = (clip, m) => !m || clip.eventDate.slice(0, 7) <= m;
+
+  /* ── 分頁切換 ── */
+  function setMode(mode) {
+    document.getElementById('tabTag').classList.toggle('on', mode === 'tag');
+    document.getElementById('tabText').classList.toggle('on', mode === 'text');
+    document.getElementById('paneTag').style.display = mode === 'tag' ? '' : 'none';
+    document.getElementById('paneText').style.display = mode === 'text' ? '' : 'none';
+    document.getElementById('resultWrap').style.display = 'none';   // 換查詢法即收起舊結果
+  }
+  document.getElementById('tabTag').onclick = () => setMode('tag');
+  document.getElementById('tabText').onclick = () => setMode('text');
+
+  /* ── 標籤輪播（3 列，橫向捲動）── */
+  function renderTags() {
     const map = new Map();
-    for (const c of M.CLIPS) {
-      if (c.status !== 'reviewed' || !inRange(c.eventDate)) continue;
+    for (const c of REVIEWED) {
+      if (!upTo(c, tagUpTo)) continue;
       for (const t of c.tags) {
         if (!map.has(t.name)) map.set(t.name, { name: t.name, kind: t.kind, source: 'human', count: 0 });
         map.get(t.name).count++;
       }
     }
-    return [...map.values()].sort((a, b) => b.count - a.count);
+    const avail = [...map.values()].sort((a, b) => b.count - a.count);
+    for (const n of [...selected]) if (!map.has(n)) selected.delete(n);
+
+    const el = document.getElementById('tagCarousel');
+    el.innerHTML = avail.map(t => APP.tagChip(t, { count: t.count, selected: selected.has(t.name) })).join('')
+      || '<span style="color:var(--text-dim);font-size:.85rem">此區間沒有標籤</span>';
+    el.querySelectorAll('.chip').forEach(chip => chip.onclick = () => {
+      const n = chip.dataset.name, on = selected.has(n);
+      on ? selected.delete(n) : selected.add(n);
+      chip.classList.toggle('sel', !on);
+      syncGo();
+    });
+    syncGo();
   }
-  function renderTags() {
-    chipsEl.innerHTML = '';
-    const avail = tagsInRange();
-    const names = new Set(avail.map(t => t.name));
-    for (const n of [...selected]) if (!names.has(n)) selected.delete(n);
-    saveTags();
-    for (const t of avail) {
-      const wrap = document.createElement('span');
-      wrap.innerHTML = APP.tagChip(t, { count: t.count, selected: selected.has(t.name) });
-      const el = wrap.firstElementChild;
-      el.onclick = () => {
-        const on = selected.has(t.name);
-        on ? selected.delete(t.name) : selected.add(t.name);
-        el.classList.toggle('sel', !on);
-        saveTags();
-        renderResults();
-      };
-      chipsEl.appendChild(el);
-    }
+  function syncGo() { document.getElementById('goTag').disabled = selected.size === 0; }
+
+  /* ── 時間（單擊即選定，只查該月含以前）── */
+  document.getElementById('tagDate').onclick = () => APP.openMonthPicker({
+    value: tagUpTo, title: '選擇時間',
+    onPick: v => { tagUpTo = v; document.getElementById('tagDateLabel').textContent = APP.monthLabel(v) + ' 以前'; renderTags(); },
+    onClear: () => { tagUpTo = ''; document.getElementById('tagDateLabel').textContent = '全部日期'; renderTags(); }
+  });
+  document.getElementById('textDate').onclick = () => APP.openMonthPicker({
+    value: textUpTo, title: '選擇時間',
+    onPick: v => { textUpTo = v; document.getElementById('textDateLabel').textContent = APP.monthLabel(v) + ' 以前'; },
+    onClear: () => { textUpTo = ''; document.getElementById('textDateLabel').textContent = '全部日期'; }
+  });
+
+  /* ── 文字查詢：mockup 以關鍵字比對代替，正式版此處走語意檢索 ── */
+  const textInput = document.getElementById('textInput');
+  textInput.addEventListener('input', () => document.getElementById('goText').disabled = !textInput.value.trim());
+  function matches(c, q) {
+    const v = M.videoOf(c);
+    const hay = [c.summary, c.note, v.title, M.channelOf(c), ...c.tags.map(t => t.name)].join(' ').toLowerCase();
+    return q.toLowerCase().split(/\s+/).filter(Boolean).some(w => hay.includes(w));
   }
-  function renderResults() {
+
+  /* ── 結果 ── */
+  function showResults(list, desc) {
+    const wrap = document.getElementById('resultWrap');
     const results = document.getElementById('results');
     const empty = document.getElementById('empty');
-    results.innerHTML = '';
-    if (selected.size === 0) { empty.style.display = 'none'; return; }
-    let list = M.CLIPS.filter(c => c.status === 'reviewed' && inRange(c.eventDate) && c.tags.some(t => selected.has(t.name)));
     list.sort((a, b) => b.eventDate.localeCompare(a.eventDate));
-    empty.style.display = list.length ? 'none' : 'block';
+    results.innerHTML = '';
     for (const c of list) {
       const tile = document.createElement('div');
       tile.className = 'tile';
@@ -118,93 +144,31 @@
       tile.onclick = () => location.href = `detail.html?v=${c.videoId}&c=${c.id}`;
       results.appendChild(tile);
     }
+    document.getElementById('resultBar').textContent = `${desc} · ${list.length} 筆`;
+    empty.style.display = list.length ? 'none' : 'block';
+    wrap.style.display = '';
+    wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  function applyRange(f, t) {
-    fromM = f; toM = t;
-    document.getElementById('dateLabel').textContent = (f && t) ? `${label(f)} – ${label(t)}` : '全部日期';
-    if (f && t) localStorage.setItem(LS_KEY, JSON.stringify({ from: f, to: t }));
-    else localStorage.removeItem(LS_KEY);
-    renderTags(); renderResults();
-  }
+  document.getElementById('goTag').onclick = () => showResults(
+    REVIEWED.filter(c => upTo(c, tagUpTo) && c.tags.some(t => selected.has(t.name))),
+    `${tagUpTo ? APP.monthLabel(tagUpTo) + ' 以前' : '全部日期'}｜標籤：${[...selected].join('、')}`
+  );
+  document.getElementById('goText').onclick = () => {
+    const q = textInput.value.trim();
+    showResults(
+      REVIEWED.filter(c => upTo(c, textUpTo) && matches(c, q)),
+      `${textUpTo ? APP.monthLabel(textUpTo) + ' 以前' : '全部日期'}｜「${q}」`
+    );
+  };
 
-  /* ── 自訂日期面板 ── */
-  const backdrop = document.getElementById('dpBackdrop'), panel = document.getElementById('dpPanel');
-  const yearsEl = document.getElementById('dpYears'), rangeText = document.getElementById('dpRangeText');
-  let pickStart = null, pickEnd = null; // 面板內暫存（month num）
-
-  function buildYears() {
-    yearsEl.innerHTML = '';
-    for (let y = maxYear; y >= minYear; y--) {
-      const sec = document.createElement('div'); sec.className = 'dp-year';
-      sec.innerHTML = `<h4>${y}年</h4><div class="dp-grid"></div>`;
-      const grid = sec.querySelector('.dp-grid');
-      for (let mo = 1; mo <= 12; mo++) {
-        const n = y * 12 + (mo - 1);
-        const b = document.createElement('button');
-        b.className = 'dp-month'; b.textContent = mo + '月'; b.dataset.n = n;
-        b.onclick = () => onPick(n);
-        grid.appendChild(b);
-      }
-      yearsEl.appendChild(sec);
-    }
-    paint();
-  }
-  function paint() {
-    // 選了第一個月後，前後超過 6 個月的月份皆禁用
-    const limiting = pickStart !== null && pickEnd === null;
-    yearsEl.querySelectorAll('.dp-month').forEach(b => {
-      const n = +b.dataset.n;
-      b.classList.remove('sel', 'in-range', 'disabled');
-      if (limiting && Math.abs(n - pickStart) > MAX - 1) b.classList.add('disabled');
-      if (pickStart !== null && pickEnd !== null) {
-        if (n === pickStart || n === pickEnd) b.classList.add('sel');
-        else if (n > pickStart && n < pickEnd) b.classList.add('in-range');
-      } else if (pickStart !== null && n === pickStart) {
-        b.classList.add('sel');
-      }
-    });
-    rangeText.textContent = pickStart === null ? '選擇月份'
-      : pickEnd === null ? `已選 ${label(numMonth(pickStart))}`
-      : `${label(numMonth(pickStart))} – ${label(numMonth(pickEnd))}`;
-  }
-  function onPick(n) {
-    if (pickStart === null || pickEnd !== null) { pickStart = n; pickEnd = null; paint(); return; }
-    if (Math.abs(n - pickStart) > MAX - 1) return; // 前後超過 6 個月，禁用
-    const s = Math.min(n, pickStart), e = Math.max(n, pickStart);
-    pickStart = s; pickEnd = e; paint();
-    setTimeout(() => { applyRange(numMonth(s), numMonth(e)); closePanel(); }, 180);
-  }
-  function openPanel() {
-    pickStart = fromM ? monthNum(fromM) : null;
-    pickEnd = toM ? monthNum(toM) : null;
-    // 已有完整範圍時，開啟即視為「重新選」狀態但先顯示現值
-    paint();
-    backdrop.classList.add('show'); panel.classList.add('show');
-    // 捲到起始月
-    const target = yearsEl.querySelector('.dp-month.sel');
-    target?.scrollIntoView({ block: 'center' });
-  }
-  function closePanel() { backdrop.classList.remove('show'); panel.classList.remove('show'); }
-
-  document.getElementById('dateTrigger').onclick = openPanel;
-  backdrop.onclick = closePanel;
-  document.getElementById('dpClear').onclick = () => { pickStart = pickEnd = null; applyRange('', ''); closePanel(); };
-  document.getElementById('clearDate').onclick = () => applyRange('', '');
-
-  buildYears();
-
-  /* ── 初始化 ──
-     ?tag=：改為只選該標籤並顯示全部日期；
-     否則沿用 localStorage 記憶的日期範圍與已選標籤，無則預設近 3 個月 ── */
+  /* ── 初始化：?tag= 由首頁月份標籤帶入，直接出結果 ── */
+  renderTags();
   const preTag = new URLSearchParams(location.search).get('tag');
   if (preTag) {
-    selected.clear(); selected.add(preTag); saveTags();
-    applyRange('', ''); // renderTags 會標記選取、renderResults 顯示結果
-  } else {
-    const saved = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
-    if (saved) applyRange(saved.from, saved.to);
-    else applyRange(numMonth(monthNum(maxM) - 2), maxM); // 預設近 3 個月
+    selected.add(preTag);
+    renderTags();
+    document.getElementById('goTag').click();
   }
 </script>
 </body>

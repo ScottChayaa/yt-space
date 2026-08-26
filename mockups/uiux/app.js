@@ -47,7 +47,7 @@ function tagChip(tag, opts = {}) {
 function renderNav(active) {
   const items = [
     { id: 'home', href: 'home.html', ico: 'home', label: '首頁' },
-    { id: 'tags', href: 'tags.html', ico: 'tag', label: '標籤' },
+    { id: 'tags', href: 'tags.html', ico: 'search', label: '查詢' },
     { id: 'todo', href: 'todo.html', ico: 'inbox', label: '代辦' },
     { id: 'settings', href: 'settings.html', ico: 'settings', label: '設定' },
     { id: 'account', href: 'settings.html#account', avatar: 'S', label: '帳號' }
@@ -111,7 +111,9 @@ function setupScrubber(groups) {
     clearTimeout(hideTimer);
     hideTimer = setTimeout(() => bubble.classList.remove('show'), 700);
   }
-  window.addEventListener('scroll', () => { flashBar(); showBubble(window.innerHeight * 0.4); }, { passive: true });
+  if (setupScrubber._onScroll) window.removeEventListener('scroll', setupScrubber._onScroll);
+  setupScrubber._onScroll = () => { flashBar(); showBubble(window.innerHeight * 0.4); };
+  window.addEventListener('scroll', setupScrubber._onScroll, { passive: true });
 
   let dragging = false;
   function fromPointer(clientY) {
@@ -176,4 +178,58 @@ function closeSheet() {
   document.getElementById('sheet')?.classList.remove('show');
 }
 window.openSheet = openSheet; window.closeSheet = closeSheet;
-window.APP = { svg, ICONS, KIND, kindSvg, tagChip, renderNav, bindPress, setupScrubber, top2Tags, openSheet, closeSheet };
+
+/* ───────── 共用月份選擇器（單擊即選，年份/月份皆為 desc）─────────
+   opts: { value:'YYYY-MM'|'', title, onPick(v), onClear() } */
+const monthLabel = s => { const [y, m] = s.split('-'); return `${y}年${+m}月`; };
+
+function ensureMonthPicker() {
+  let bd = document.getElementById('mpBackdrop');
+  if (bd) return;
+  bd = document.createElement('div'); bd.id = 'mpBackdrop'; bd.className = 'dp-backdrop';
+  const panel = document.createElement('div'); panel.id = 'mpPanel'; panel.className = 'dp-panel';
+  panel.innerHTML = `<div class="handle"></div>
+    <div class="dp-head"><span id="mpTitle">選擇起始月份</span><button class="dp-clear" id="mpClear">清除</button></div>
+    <div class="dp-hint">點一次即選定；只顯示該月份（含）以前的資料</div>
+    <div class="dp-years" id="mpYears"></div>`;
+  document.body.append(bd, panel);
+  bd.addEventListener('click', closeMonthPicker);
+}
+function closeMonthPicker() {
+  document.getElementById('mpBackdrop')?.classList.remove('show');
+  document.getElementById('mpPanel')?.classList.remove('show');
+}
+function openMonthPicker(opts = {}) {
+  ensureMonthPicker();
+  const { value = '', title = '選擇起始月份', onPick, onClear } = opts;
+  // 資料涵蓋年份（以 reviewed clip 為準）
+  const months = M.CLIPS.map(c => c.eventDate.slice(0, 7));
+  const minY = +months.reduce((a, b) => a < b ? a : b).slice(0, 4);
+  const maxY = +months.reduce((a, b) => a > b ? a : b).slice(0, 4);
+  // 有資料的月份（無資料者淡化但仍可點）
+  const has = new Set(months);
+
+  document.getElementById('mpTitle').textContent = title;
+  const yearsEl = document.getElementById('mpYears');
+  yearsEl.innerHTML = '';
+  for (let y = maxY; y >= minY; y--) {           // 年份 desc
+    const sec = document.createElement('div'); sec.className = 'dp-year';
+    sec.innerHTML = `<h4>${y}年</h4><div class="dp-grid"></div>`;
+    const grid = sec.querySelector('.dp-grid');
+    for (let mo = 12; mo >= 1; mo--) {           // 月份 desc
+      const key = `${y}-${String(mo).padStart(2, '0')}`;
+      const b = document.createElement('button');
+      b.className = 'dp-month' + (key === value ? ' sel' : '') + (has.has(key) ? '' : ' dim');
+      b.textContent = mo + '月';
+      b.onclick = () => { closeMonthPicker(); onPick?.(key); };   // 單擊即完成
+      grid.appendChild(b);
+    }
+    yearsEl.appendChild(sec);
+  }
+  document.getElementById('mpClear').onclick = () => { closeMonthPicker(); onClear?.(); };
+  document.getElementById('mpBackdrop').classList.add('show');
+  document.getElementById('mpPanel').classList.add('show');
+  yearsEl.querySelector('.dp-month.sel')?.scrollIntoView({ block: 'center' });
+}
+
+window.APP = { svg, ICONS, KIND, kindSvg, tagChip, renderNav, bindPress, setupScrubber, top2Tags, openSheet, closeSheet, openMonthPicker, closeMonthPicker, monthLabel };

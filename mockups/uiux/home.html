@@ -8,13 +8,16 @@
 </head>
 <body>
 <div class="app-main">
+  <!-- 頂列：查詢時間（單擊選定年月 → 只顯示該月含以前的資料）-->
   <div class="topbar">
-    <div class="search" id="searchBox">
-      <input id="searchInput" placeholder="搜尋片段…例：加勒比海 潛水 米粉">
-    </div>
+    <button class="date-trigger" id="dateTrigger">
+      <span class="tlabel" id="dateLabel">查詢時間</span>
+    </button>
+    <button class="date-clear" id="clearDate" aria-label="清除時間"></button>
   </div>
 
   <div class="grid-scroll" id="grid"></div>
+  <div class="empty" id="empty" style="display:none">此時間點以前沒有片段</div>
 
   <!-- immich 懸浮時間軸 -->
   <div class="scrubber" id="scrubber"></div>
@@ -28,30 +31,26 @@
 <script src="app.js"></script>
 <script>
   document.getElementById('nav').innerHTML = APP.renderNav('home');
-  document.getElementById('searchBox').insertAdjacentHTML('afterbegin', APP.svg(APP.ICONS.search, 'ic'));
+  document.getElementById('dateTrigger').insertAdjacentHTML('afterbegin', APP.svg(APP.ICONS.calendar, 'ic'));
+  document.getElementById('dateTrigger').insertAdjacentHTML('beforeend', APP.svg(APP.ICONS.chevronDown, 'ic'));
+  document.getElementById('clearDate').innerHTML = APP.svg(APP.ICONS.close, 'ic');
 
   // 只顯示已完成（reviewed）的 clip，依事件日期新到舊
   const reviewed = M.CLIPS.filter(c => c.status === 'reviewed')
     .sort((a, b) => b.eventDate.localeCompare(a.eventDate));
 
   const grid = document.getElementById('grid');
-  const empty = (() => { const e = document.createElement('div'); e.className = 'empty'; e.textContent = '找不到符合的片段'; e.style.display = 'none'; grid.after(e); return e; })();
+  const LS_KEY = 'ytspace_home_upto';
+  let upTo = localStorage.getItem(LS_KEY) || '';   // '' = 不限，顯示全部
+  let groups = [];
 
-  // 關鍵字比對：摘要 / 備註 / 影片標題 / 頻道 / 標籤
-  function matches(c, q) {
-    if (!q) return true;
-    const v = M.videoOf(c);
-    const hay = [c.summary, c.note, v.title, M.channelOf(c), ...c.tags.map(t => t.name)].join(' ').toLowerCase();
-    return q.toLowerCase().split(/\s+/).filter(Boolean).every(w => hay.includes(w));
-  }
-
-  // 依「年月」分組建立網格
-  function render(q = '') {
+  // 依「年月」分組建立網格（月份 desc）；比 upTo 更新的月份不顯示
+  function render() {
     grid.innerHTML = '';
-    const list = reviewed.filter(c => matches(c, q));
-    empty.style.display = list.length ? 'none' : 'block';
+    groups = [];
+    const list = reviewed.filter(c => !upTo || c.eventDate.slice(0, 7) <= upTo);
+    document.getElementById('empty').style.display = list.length ? 'none' : 'block';
 
-    const groups = [];
     let lastKey = null, container = null, group = null;
     for (const c of list) {
       const key = c.eventDate.slice(0, 7);
@@ -81,9 +80,25 @@
     APP.setupScrubber(groups);
   }
 
-  render();
-  // 就地即時篩選（不跳頁）
-  document.getElementById('searchInput').addEventListener('input', (e) => render(e.target.value.trim()));
+  /* 套用時間：只保留該月（含）以前的資料 —— 最上方就是該月，往下滑即往更早 */
+  function apply(key) {
+    upTo = key;
+    document.getElementById('dateLabel').textContent = key ? APP.monthLabel(key) + ' 以前' : '查詢時間';
+    key ? localStorage.setItem(LS_KEY, key) : localStorage.removeItem(LS_KEY);
+    render();
+    window.scrollTo({ top: 0 });
+  }
+
+  document.getElementById('dateTrigger').onclick = () => APP.openMonthPicker({
+    value: upTo,
+    title: '選擇時間',
+    onPick: apply,
+    onClear: () => apply('')
+  });
+  document.getElementById('clearDate').onclick = () => apply('');
+
+  history.scrollRestoration = 'manual';   // 避免瀏覽器自動還原捲動位置蓋掉上面的 scrollTo
+  apply(upTo);                            // 還原上次選定的時間（無則顯示全部）
 </script>
 </body>
 </html>
