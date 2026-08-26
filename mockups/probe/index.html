@@ -52,7 +52,7 @@
 <hr>
 <div id="out2"></div>
 
-<script src="storyboard.js"></script>
+<script src="/shared/storyboard.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 
@@ -109,24 +109,22 @@ $('src').addEventListener('change', () => {
 async function apiSpec(videoId) {
   try {
     const res = await fetch('/api/spec?v=' + encodeURIComponent(videoId));
-    // mockups/ 目錄同時被兩台伺服器服務：npx serve（8231，只有靜態檔）與 sb-probe.mjs（8232，有 /api/spec）。
-    // 開錯那台時 /api/spec 會回靜態伺服器的 HTML 404 頁，直接 res.json() 會炸在 "Unexpected token '<'"。
+    // 這頁必須由 mockups/server.mjs 服務。若被別的靜態伺服器端出去，/api/spec 會回 HTML 404 頁，
+    // 直接 res.json() 會炸在 "Unexpected token '<'"，訊息完全看不出原因。
     const ct = res.headers.get('content-type') || '';
     if (!ct.includes('application/json')) {
       return {
         errorHtml:
-          '<p class="err">這個頁面必須由 sb-probe 伺服器開啟，目前開在 port ' +
-          esc(location.port || '(預設)') + '，它沒有 /api/spec 這條路由。</p>' +
-          '<p>請改開 <a href="http://localhost:8232/sb-probe.html">http://localhost:8232/sb-probe.html</a>' +
-          '（先執行 <code>node mockups/sb-probe.mjs</code>）</p>' +
-          '<p class="hint">/api/spec 回了 ' + res.status + ' ' + esc(ct) + '，不是 JSON。</p>'
+          '<p class="err">/api/spec 回了 ' + res.status + ' ' + esc(ct) + '，不是 JSON。</p>' +
+          '<p>這頁必須由 mockups 伺服器開啟。請在專案根目錄執行 <code>pnpm mock</code>，' +
+          '然後開 <a href="/probe/">/probe/</a>。</p>'
       };
     }
     return { data: await res.json() };
   } catch (e) {
     return {
       errorHtml: '<p class="err">請求失敗：' + esc(e) + '</p>' +
-        '<p class="hint">若訊息是「Failed to fetch」，多半是 sb-probe 伺服器沒開：<code>node mockups/sb-probe.mjs</code></p>'
+        '<p class="hint">若訊息是「Failed to fetch」，多半是伺服器沒開：在專案根目錄執行 <code>pnpm mock</code></p>'
     };
   }
 }
@@ -306,12 +304,12 @@ async function runL2() {
     try {
       const res = await fetch(proxied);
       // 404 只可能是「這台伺服器沒有 /api/sheet 這條路由」——上游失敗一律被代理轉成 502。
-      // 最常見的原因是 sb-probe.mjs 還跑著加這條路由之前的舊版本。
+      // 最常見的原因是伺服器還跑著加這條路由之前的舊版本。
       if (res.status === 404) {
         out.innerHTML =
           '<p class="err">伺服器沒有 <code>/api/sheet</code> 這條路由（回 404）。</p>' +
-          '<p>多半是 <code>sb-probe.mjs</code> 還跑著舊版本 —— 這條路由是後來才加的。' +
-          '請停掉那個行程再重新執行 <code>node mockups/sb-probe.mjs</code>。</p>' +
+          '<p>多半是伺服器還跑著舊版本。請停掉那個行程，回專案根目錄重新執行 ' +
+          '<code>pnpm mock</code>。</p>' +
           '<p class="hint">「查詢」按鈕仍然能用，是因為 <code>/api/spec</code> 舊版本就有了。</p>';
         status.textContent = '';
         return;
