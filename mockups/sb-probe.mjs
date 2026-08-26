@@ -4,6 +4,7 @@
 // 純前端無法抓 watch page（跨來源被擋），所以這支小伺服器負責兩件事：
 //   1. 靜態檔案（sb-probe.html / storyboard.js）
 //   2. GET /api/spec?v=<videoId> —— 代抓 watch page 並回傳 playerStoryboardSpecRenderer.spec
+//   3. GET /api/sheet?u=<sheetUrl> —— 代理 i.ytimg.com 圖檔（補 CORS，讓前端量得到大小）
 // 這正是正式版後端 src/lib/server/youtube.ts 要做的事，此處是最小驗證版。
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -84,6 +85,42 @@ createServer(async (req, res) => {
       res.writeHead(out.result === 'ok' ? 200 : 502).end(JSON.stringify(out));
     } catch (e) {
       res.writeHead(502).end(JSON.stringify({ result: 'fetch_failed', error: String(e) }));
+    }
+    return;
+  }
+
+  // 代理 i.ytimg.com 的 sheet 圖檔。兩個目的：
+  //   1. i.ytimg.com 不送 CORS 標頭，前端 fetch 不到位元組 → 量不出檔案大小
+  //   2. 同來源之後 canvas 不會被污染 → 可以逐格 toBlob 重新編碼，量單張存檔大小
+  if (url.pathname === '/api/sheet') {
+    const u = url.searchParams.get('u');
+    if (!u) return res.writeHead(400).end('bad_request');
+    let target;
+    try {
+      target = new URL(u);
+    } catch {
+      return res.writeHead(400).end('bad_url');
+    }
+    if (target.hostname !== 'i.ytimg.com') return res.writeHead(403).end('host_not_allowed');
+    try {
+      const up = await fetch(target, { headers: { 'user-agent': UA } });
+      // 上游失敗一律回 502，不要原樣轉發它的狀態碼。
+      // 否則上游的 404 會跟「這台伺服器沒有 /api/sheet 這條路由」的 404 撞在一起，
+      // 前端就分不出是圖不存在還是伺服器版本太舊。
+      if (!up.ok) {
+        return res
+          .writeHead(502, { 'content-type': 'application/json; charset=utf-8' })
+          .end(JSON.stringify({ error: 'upstream', status: up.status, url: target.href }));
+      }
+      const buf = Buffer.from(await up.arrayBuffer());
+      res.writeHead(200, {
+        'content-type': up.headers.get('content-type') || 'application/octet-stream',
+        'content-length': buf.length,
+        'cache-control': 'no-store'
+      }).end(buf);
+    } catch (e) {
+      res.writeHead(502, { 'content-type': 'application/json; charset=utf-8' })
+         .end(JSON.stringify({ error: 'fetch_failed', message: String(e) }));
     }
     return;
   }

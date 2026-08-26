@@ -20,6 +20,14 @@
   #frame { border: 1px solid #999; }
   #sheet { max-width: 100%; border: 1px solid #999; display: block; }
   .hint { color: #666; font-weight: normal; font-size: 12px; }
+  #out2 table td { text-align: right; }
+  .sheetbox { position: relative; display: inline-block; margin: 0 10px 10px 0; vertical-align: top; }
+  .sheetbox img { display: block; border: 1px solid #999; max-width: 100%; }
+  .sheetcap { font-size: 12px; color: #444; }
+  .dead { position: absolute; background: rgba(180,0,0,.45); outline: 1px solid #b00; outline-offset: -1px; }
+  .total { background: #efe; border: 1px solid #6a6; padding: 8px 12px; margin: 8px 0; }
+  .total b { font-size: 16px; }
+  hr { margin: 28px 0 8px; border: 0; border-top: 2px solid #ccc; }
 </style>
 </head>
 <body>
@@ -36,9 +44,13 @@
 <input type="text" id="lv" value="">
 
 <button id="go">查詢</button>
+<button id="goL2">列出 L2 全部縮圖</button>
 <span id="status"></span>
 
 <div id="out"></div>
+
+<hr>
+<div id="out2"></div>
 
 <script src="storyboard.js"></script>
 <script>
@@ -92,6 +104,33 @@ $('src').addEventListener('change', () => {
   if (t !== null) $('time').value = String(t);
 });
 
+// 取 spec。兩個入口（單點查詢／L2 全覽）共用，錯誤訊息也一致。
+// 回傳 { data } 或 { errorHtml }。
+async function apiSpec(videoId) {
+  try {
+    const res = await fetch('/api/spec?v=' + encodeURIComponent(videoId));
+    // mockups/ 目錄同時被兩台伺服器服務：npx serve（8231，只有靜態檔）與 sb-probe.mjs（8232，有 /api/spec）。
+    // 開錯那台時 /api/spec 會回靜態伺服器的 HTML 404 頁，直接 res.json() 會炸在 "Unexpected token '<'"。
+    const ct = res.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+      return {
+        errorHtml:
+          '<p class="err">這個頁面必須由 sb-probe 伺服器開啟，目前開在 port ' +
+          esc(location.port || '(預設)') + '，它沒有 /api/spec 這條路由。</p>' +
+          '<p>請改開 <a href="http://localhost:8232/sb-probe.html">http://localhost:8232/sb-probe.html</a>' +
+          '（先執行 <code>node mockups/sb-probe.mjs</code>）</p>' +
+          '<p class="hint">/api/spec 回了 ' + res.status + ' ' + esc(ct) + '，不是 JSON。</p>'
+      };
+    }
+    return { data: await res.json() };
+  } catch (e) {
+    return {
+      errorHtml: '<p class="err">請求失敗：' + esc(e) + '</p>' +
+        '<p class="hint">若訊息是「Failed to fetch」，多半是 sb-probe 伺服器沒開：<code>node mockups/sb-probe.mjs</code></p>'
+    };
+  }
+}
+
 async function run() {
   const out = $('out'), status = $('status');
   out.innerHTML = '';
@@ -101,30 +140,10 @@ async function run() {
   if (Number.isNaN(t)) { out.innerHTML = '<p class="err">時間點格式無法解析</p>'; return; }
 
   status.textContent = ' 抓取中…';
-  let data;
-  try {
-    const res = await fetch('/api/spec?v=' + encodeURIComponent(videoId));
-    // mockups/ 目錄同時被兩台伺服器服務：npx serve（8231，只有靜態檔）與 sb-probe.mjs（8232，有 /api/spec）。
-    // 開錯那台時 /api/spec 會回靜態伺服器的 HTML 404 頁，直接 res.json() 會炸在 "Unexpected token '<'"。
-    const ct = res.headers.get('content-type') || '';
-    if (!ct.includes('application/json')) {
-      status.textContent = '';
-      out.innerHTML =
-        '<p class="err">這個頁面必須由 sb-probe 伺服器開啟，目前開在 port ' +
-        esc(location.port || '(預設)') + '，它沒有 /api/spec 這條路由。</p>' +
-        '<p>請改開 <a href="http://localhost:8232/sb-probe.html">http://localhost:8232/sb-probe.html</a>' +
-        '（先執行 <code>node mockups/sb-probe.mjs</code>）</p>' +
-        '<p class="hint">/api/spec 回了 ' + res.status + ' ' + esc(ct) + '，不是 JSON。</p>';
-      return;
-    }
-    data = await res.json();
-  } catch (e) {
-    status.textContent = '';
-    out.innerHTML = '<p class="err">請求失敗：' + esc(e) + '</p>' +
-      '<p class="hint">若訊息是「Failed to fetch」，多半是 sb-probe 伺服器沒開：<code>node mockups/sb-probe.mjs</code></p>';
-    return;
-  }
+  const got = await apiSpec(videoId);
   status.textContent = '';
+  if (got.errorHtml) { out.innerHTML = got.errorHtml; return; }
+  const data = got.data;
 
   if (data.result !== 'ok') {
     const why = {
@@ -148,7 +167,8 @@ async function run() {
   const level = spec.levels.find((l) => l.level === want && l.intervalMs > 0) || SB.pickLevel(spec);
   const pos = SB.frameAt(level, t);
   const url = SB.sheetUrl(spec, level, pos.sheetIndex);
-  const frameIndex = Math.min(Math.floor(t / (level.intervalMs / 1000)), level.frameCount - 1);
+  // 從 frameAt 的結果反推格號，不要自己再算一次 —— 兩邊規則不同步就會顯示錯的誤差
+  const frameIndex = pos.sheetIndex * level.cols * level.rows + pos.row * level.cols + pos.col;
   const actualT = frameIndex * level.intervalMs / 1000;
 
   const rows = spec.levels.map((l) => {
@@ -202,6 +222,167 @@ async function run() {
   img.src = url;
 }
 
+// ---- L2 全覽 ----------------------------------------------------------
+// 列出某支影片 L2 層級「全部不重複」的 sheet，並實測儲存大小。
+// 只開放 20 分鐘內的影片：20 分鐘的 L2 大約 6 張 sheet、150 格，
+// 逐格重新編碼要跑 300 次 toBlob，再長就會卡住瀏覽器。
+const L2_MAX_DURATION = 1200;
+
+const fmtSize = (b) =>
+  b >= 1048576 ? (b / 1048576).toFixed(2) + ' MB' : (b / 1024).toFixed(1) + ' KB';
+
+const toBlobAsync = (canvas, type, q) => new Promise((r) => canvas.toBlob(r, type, q));
+
+async function runL2() {
+  const out = $('out2'), status = $('status');
+  out.innerHTML = '';
+
+  const videoId = parseVideoId($('src').value);
+  if (!videoId) { out.innerHTML = '<p class="err">無法從輸入內容解析出 videoId</p>'; return; }
+
+  status.textContent = ' 抓 spec…';
+  const got = await apiSpec(videoId);
+  status.textContent = '';
+  if (got.errorHtml) { out.innerHTML = got.errorHtml; return; }
+  const data = got.data;
+
+  if (data.result !== 'ok') {
+    out.innerHTML = '<p class="err">result = ' + esc(data.result) + '</p>' +
+      '<pre>' + esc(JSON.stringify(data, null, 2)) + '</pre>';
+    return;
+  }
+  if (!data.duration) {
+    out.innerHTML = '<p class="err">抓不到片長，無法套用 20 分鐘上限，中止。</p>';
+    return;
+  }
+  if (data.duration > L2_MAX_DURATION) {
+    out.innerHTML = '<p class="err">片長 ' + fmt(data.duration) + '（' + data.duration +
+      's）超過 20 分鐘上限，這個功能只跑 20 分鐘內的影片。</p>';
+    return;
+  }
+
+  const spec = SB.parseStoryboardSpec(data.spec);
+  if (!spec) { out.innerHTML = '<p class="err">spec 解析失敗</p>'; return; }
+
+  const level = spec.levels.find((l) => l.level === 2 && l.intervalMs > 0);
+  if (!level) {
+    out.innerHTML = '<p class="err">這支影片沒有可用的 L2 層級</p>' +
+      '<p class="hint">有的短影片最高只到 L1。正式版遇到這種要往下降級。</p>';
+    return;
+  }
+
+  const per = level.cols * level.rows;
+  const sheetCount = Math.ceil(level.frameCount / per);
+
+  out.innerHTML = `
+    <h3>L2 全覽 <span class="hint">（20 分鐘內限定）</span></h3>
+    <div><b>${esc(data.title || '')}</b></div>
+    <div>videoId = <b>${esc(data.videoId)}</b>　片長 = ${fmt(data.duration)} (${data.duration}s)</div>
+    <div>L2 單格 <b>${level.width}×${level.height}</b>　排列 ${level.cols}×${level.rows}
+         = 每張 ${per} 格　取樣間隔 <b>${level.intervalMs / 1000}s</b></div>
+    <div>不重複格數 <b>${level.frameCount}</b>　→　需要 <b>${sheetCount}</b> 張 sheet　
+         <span class="hint">（涵蓋 ${fmt(level.frameCount * level.intervalMs / 1000)}）</span></div>
+    <table>
+      <thead><tr><th>sheet</th><th>有效格數</th><th>時間範圍</th><th>下載大小</th><th>每格平均</th></tr></thead>
+      <tbody id="l2tab"></tbody>
+    </table>
+    <div id="l2total"></div>
+    <div id="l2imgs"></div>`;
+
+  const tab = $('l2tab'), imgs = $('l2imgs');
+  let totalSheetBytes = 0, totalWebp = 0, totalJpeg = 0, totalFrames = 0;
+  const canvas = document.createElement('canvas');
+  canvas.width = level.width;
+  canvas.height = level.height;
+  const ctx = canvas.getContext('2d');
+
+  for (let i = 0; i < sheetCount; i++) {
+    status.textContent = ` 第 ${i + 1}/${sheetCount} 張…`;
+    const realUrl = SB.sheetUrl(spec, level, i);
+    // 走本機代理：i.ytimg.com 沒有 CORS 標頭，直連的話既量不到位元組、canvas 也會被污染
+    const proxied = '/api/sheet?u=' + encodeURIComponent(realUrl);
+
+    let blob;
+    try {
+      const res = await fetch(proxied);
+      // 404 只可能是「這台伺服器沒有 /api/sheet 這條路由」——上游失敗一律被代理轉成 502。
+      // 最常見的原因是 sb-probe.mjs 還跑著加這條路由之前的舊版本。
+      if (res.status === 404) {
+        out.innerHTML =
+          '<p class="err">伺服器沒有 <code>/api/sheet</code> 這條路由（回 404）。</p>' +
+          '<p>多半是 <code>sb-probe.mjs</code> 還跑著舊版本 —— 這條路由是後來才加的。' +
+          '請停掉那個行程再重新執行 <code>node mockups/sb-probe.mjs</code>。</p>' +
+          '<p class="hint">「查詢」按鈕仍然能用，是因為 <code>/api/spec</code> 舊版本就有了。</p>';
+        status.textContent = '';
+        return;
+      }
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      blob = await res.blob();
+    } catch (e) {
+      tab.insertAdjacentHTML('beforeend',
+        `<tr><td>M${i}</td><td colspan="4" class="err">抓取失敗：${esc(e.message || e)}</td></tr>`);
+      continue;
+    }
+
+    const frames = Math.min(per, level.frameCount - i * per);
+    totalFrames += frames;
+    totalSheetBytes += blob.size;
+
+    // 逐格切出來重新編碼，量「存單張」要多少空間
+    const bmp = await createImageBitmap(blob);
+    const cw = bmp.width / level.cols, ch = bmp.height / level.rows;
+    canvas.width = Math.round(cw);
+    canvas.height = Math.round(ch);
+    let sheetWebp = 0, sheetJpeg = 0;
+    for (let k = 0; k < frames; k++) {
+      const c = k % level.cols, r = Math.floor(k / level.cols);
+      ctx.drawImage(bmp, c * cw, r * ch, cw, ch, 0, 0, canvas.width, canvas.height);
+      const [w, j] = await Promise.all([
+        toBlobAsync(canvas, 'image/webp', 0.75),
+        toBlobAsync(canvas, 'image/jpeg', 0.8)
+      ]);
+      if (w) sheetWebp += w.size;
+      if (j) sheetJpeg += j.size;
+    }
+    bmp.close();
+    totalWebp += sheetWebp;
+    totalJpeg += sheetJpeg;
+
+    const t0 = i * per * level.intervalMs / 1000;
+    const t1 = (i * per + frames - 1) * level.intervalMs / 1000;
+    tab.insertAdjacentHTML('beforeend',
+      `<tr><td>M${i}</td><td>${frames}${frames < per ? ' / ' + per : ''}</td>` +
+      `<td>${fmt(t0)} – ${fmt(t1)}</td><td>${fmtSize(blob.size)}</td>` +
+      `<td>${fmtSize(blob.size / frames)}</td></tr>`);
+
+    // 最後一張通常沒填滿，把用不到的格子標紅，才看得出「不重複」是哪些
+    let deads = '';
+    for (let k = frames; k < per; k++) {
+      const c = k % level.cols, r = Math.floor(k / level.cols);
+      deads += `<div class="dead" style="left:${c / level.cols * 100}%;top:${r / level.rows * 100}%;` +
+        `width:${100 / level.cols}%;height:${100 / level.rows}%"></div>`;
+    }
+    imgs.insertAdjacentHTML('beforeend',
+      `<div class="sheetbox"><img src="${esc(proxied)}" alt="M${i}">${deads}` +
+      `<div class="sheetcap">M${i} · ${frames} 格 · ${fmtSize(blob.size)}</div></div>`);
+  }
+
+  status.textContent = '';
+  $('l2total').innerHTML = `
+    <div class="total">
+      <div>sheet 原檔合計（存 sprite 的做法）：<b>${fmtSize(totalSheetBytes)}</b>
+        　${sheetCount} 張 / ${totalFrames} 格　每格平均 ${fmtSize(totalSheetBytes / totalFrames)}</div>
+      <div>逐格切成 WebP q75 合計（存單張的做法）：<b>${fmtSize(totalWebp)}</b>
+        　每格平均 ${fmtSize(totalWebp / totalFrames)}
+        <span class="hint">（${(totalWebp / totalSheetBytes).toFixed(2)}× sprite）</span></div>
+      <div>逐格切成 JPEG q80 合計：<b>${fmtSize(totalJpeg)}</b>
+        　每格平均 ${fmtSize(totalJpeg / totalFrames)}
+        <span class="hint">（${(totalJpeg / totalSheetBytes).toFixed(2)}× sprite）</span></div>
+    </div>
+    <p class="hint">紅色格子＝該 sheet 未使用的空格，不計入格數與重編碼統計。</p>`;
+}
+
+$('goL2').onclick = runL2;
 $('go').onclick = run;
 $('src').addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
 $('time').addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
