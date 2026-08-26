@@ -42,7 +42,7 @@ describe('createClip', () => {
 			origin: 'web'
 		});
 		expect(clip.status).toBe('inbox');
-		expect(clip.analysisLevel).toBe('L0');
+		expect(clip.analysisMode).toBe('bookmark');
 		expect(clip.tags).toEqual([]);
 		const clips = await repo.listClipsByVideo(DEV_OWNER_ID, 'KUdmrPVssFA');
 		expect(clips.map((c) => c.id)).toContain(clip.id);

@@ -75,7 +75,7 @@ function seedClips(tags: Tag[]): Clip[] {
 			summary: '一群人在營地手忙腳亂地搭帳篷',
 			transcript: '這個角要先拉起來啦',
 			visualDesc: '草地上三個人合力撐起一頂綠色帳篷',
-			analysisLevel: 'L2',
+			analysisMode: 'segment',
 			status: 'reviewed',
 			tags: [
 				{ tag: tags[0], source: 'ai' },
@@ -94,7 +94,7 @@ function seedClips(tags: Tag[]): Clip[] {
 			summary: '阿明在溪邊踩滑跌進水裡',
 			transcript: '啊啊啊小心',
 			visualDesc: '溪流旁的石頭上有人失去平衡',
-			analysisLevel: 'L2',
+			analysisMode: 'segment',
 			status: 'analyzed',
 			tags: [
 				{ tag: tags[0], source: 'ai' },
@@ -112,7 +112,7 @@ function seedClips(tags: Tag[]): Clip[] {
 			summary: '',
 			transcript: '',
 			visualDesc: '',
-			analysisLevel: 'L0',
+			analysisMode: 'bookmark',
 			status: 'inbox',
 			tags: []
 		},
@@ -127,7 +127,7 @@ function seedClips(tags: Tag[]): Clip[] {
 			summary: '',
 			transcript: '',
 			visualDesc: '',
-			analysisLevel: 'L0',
+			analysisMode: 'bookmark',
 			status: 'inbox',
 			tags: []
 		}
@@ -184,7 +184,7 @@ export class MockRepo implements Repo {
 			visualDesc: '',
 			thumbKey: null,
 			aiRaw: null,
-			analysisLevel: 'L0',
+			analysisMode: 'bookmark',
 			status: 'inbox',
 			origin: input.origin,
 			createdAt: new Date().toISOString(),

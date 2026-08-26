@@ -162,7 +162,7 @@ function openSheet(clip) {
     <div class="adj"><span class="lab">起</span><div class="btns"><button>設為目前</button><button>−5s</button><button>+5s</button></div></div>
     <div class="adj"><span class="lab">迄</span><div class="btns"><button>設為目前</button><button>−5s</button><button>+5s</button></div></div>
     <div class="field"><label>備註</label><textarea rows="2">${clip.note || ''}</textarea></div>
-    <button class="analyze">AI 分析這段　·　約 30 秒 · L2</button>
+    <button class="analyze">AI 分析這段　·　約 30 秒 · 區間分析</button>
     <div class="field"><label>摘要</label><textarea rows="2">${clip.summary || ''}</textarea></div>
     <div class="field"><label>標籤（虛線 = AI 待確認）</label><div class="chips">${tagChips}</div></div>
     <div class="field"><label>事件日期</label><input type="date" value="${clip.eventDate}">

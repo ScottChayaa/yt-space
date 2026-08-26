@@ -114,9 +114,9 @@ totalTokenCount: 1446 tokens
 |---|---|---|
 | 單一 30 秒 clip | 30 秒 | 約 2,300（含 overhead） |
 | 500 個 clip 全量分析 | **4.2 小時** | 約 115 萬 |
-| 單支 40 分鐘影片全片掃描（L3） | 40 分鐘 | 約 144,000 ← 單一 clip 的 60 倍 |
+| 單支 40 分鐘影片全片掃描 | 40 分鐘 | 約 144,000 ← 單一 clip 的 60 倍 |
 
-Gemini 免費層 YouTube 影片額度為**每日 8 小時**，因此 **500 個 clip 可以在同一天內全部分析完**。這證實區間分析（L2）足以支撐全量使用，而全片掃描（L3）是配額殺手 —— 這是 L3 排除在 v1 之外的量化依據。
+Gemini 免費層 YouTube 影片額度為**每日 8 小時**，因此 **500 個 clip 可以在同一天內全部分析完**。這證實**區間分析**足以支撐全量使用，而**全片掃描**是配額殺手 —— 這是全片掃描排除在 v1 之外的量化依據。
 
 ### 3. 回傳格式
 
@@ -178,7 +178,7 @@ YouTube iframe 是跨來源內容，瀏覽器安全模型禁止讀取其像素�
                       │  SvelteKit on Cloudflare Workers   │
                       │  ・+server.ts 即 API               │
                       │  ・D1：video / clip / tag + FTS5   │
-                      │  ・R2：storyboard sprite + 手動截圖 │
+                      │  ・R2：縮圖單格 webp + 手動截圖    │
                       └──────┬──────────────┬──────────────┘
                              │              │
                    ┌─────────▼───┐   ┌──────▼──────────────┐
@@ -241,8 +241,8 @@ video ── 被標記過的 YouTube 影片（不一定屬於使用者）
   ├─ published_at    YT 上傳日期
   ├─ duration_sec    影片總長
   ├─ privacy         'public' | 'unlisted' | 'unknown'
-  ├─ sb_key          R2 上 storyboard sprite 的 key 前綴（可為 null）
   ├─ sb_spec         storyboard 解碼參數 JSON（見第七節）
+  │                  只在建立/更換縮圖時用得到，不在讀取路徑上；抓不到時為 null
   └─ added_at
 
 clip ── 使用者標記的片段（本系統的第一級公民）
@@ -251,13 +251,14 @@ clip ── 使用者標記的片段（本系統的第一級公民）
   ├─ owner_id
   ├─ start_sec / end_sec
   ├─ event_date      ★ 這段實際發生的日期，預設 = published_at，可改
-  ├─ note            使用者手打的備註（L0 唯一內容，也是餵給 AI 的線索）
+  ├─ note            使用者手打的備註（純書籤模式唯一內容，也是餵給 AI 的線索）
   ├─ summary         AI 產的事件描述
   ├─ transcript      AI 聽到的內容
   ├─ visual_desc     AI 看到的畫面
-  ├─ thumb_key       R2 縮圖 key（手動上傳時才有；否則由 sb_spec 即時算出）
+  ├─ thumb_key       R2 縮圖 key（一律有值，storyboard 單格或手動上傳皆同一形態）
+  │                  storyboard 來源時為 {videoId}/L3/{frameIndex}.webp，天然去重
   ├─ ai_raw          AI 原始輸出 JSON 快照（唯讀，供還原）
-  ├─ analysis_level  'L0' | 'L2'
+  ├─ analysis_mode   'bookmark'（純書籤）| 'segment'（區間分析）
   ├─ status          'inbox' | 'analyzing' | 'analyzed' | 'reviewed' | 'failed'
   ├─ origin          'web' | 'share'（v2 加 'extension' | 'pipeline'）
   └─ created_at
@@ -354,10 +355,10 @@ flowchart LR
 ```mermaid
 flowchart TD
     IN["clip 進 Inbox<br/>status=inbox"] --> Q{要 AI 分析嗎?}
-    Q -->|"L0 純書籤"| REV
-    Q -->|"L2 區間分析"| G["Gemini<br/>YT URL + startOffset/endOffset<br/>+ fps 0.5 + LOW 解析度<br/>note 與 YT metadata 一併作為 context"]
+    Q -->|"純書籤 bookmark"| REV
+    Q -->|"區間分析 segment"| G["Gemini<br/>YT URL + startOffset/endOffset<br/>+ fps 0.5 + LOW 解析度<br/>note 與 YT metadata 一併作為 context"]
     G -->|成功| AN["status=analyzed"]
-    G -->|失敗| F["status=failed<br/>降級為 L0，提示手動描述"]
+    G -->|失敗| F["status=failed<br/>降級為純書籤，提示手動描述"]
     AN --> REV["校對<br/>改 summary / 確認 tag / 校日期 / 微調區間"]
     F --> REV
     REV --> R["status=reviewed<br/>進入檢索系統"]
@@ -371,14 +372,19 @@ flowchart TD
 
 ## 六、AI 分析
 
-### 分層策略
+### 分析模式
 
-| 層級 | 做什麼 | v1 | 成本 |
-|---|---|---|---|
-| **L0 純書籤** | 只存時間點＋使用者備註，不呼叫 AI | ✅ | $0 |
-| **L2 區間視覺** | Gemini 吃 YT URL＋區間＋低 fps＋低解析度 | ✅ **預設** | 約 60 tokens/秒 |
-| ~~L1 字幕層~~ | — | ❌ | Gemini 吃影片時本來就聽得到聲音，此層多餘 |
-| ~~L3 全片掃描~~ | 整片產章節切段 | ❌ v2 | 單支 40 分鐘片 ≈ 144K tokens，是單一 clip 的 60 倍 |
+> **命名注意**：本節的模式**刻意不用 L0/L2/L3 編號**。
+> `L0`~`L3` 在本專案已經是 YouTube storyboard 的畫質層級（見第七節），
+> 兩套編號撞名會讓「L2 是配額殺手嗎？」這種問題無法回答。
+> 資料欄位為 `clip.analysis_mode`，型別 `AnalysisMode = 'bookmark' | 'segment'`。
+
+| 模式 | 欄位值 | 做什麼 | v1 | 成本 |
+|---|---|---|---|---|
+| **純書籤** | `bookmark` | 只存時間點＋使用者備註，不呼叫 AI | ✅ | $0 |
+| **區間分析** | `segment` | Gemini 吃 YT URL＋區間＋低 fps＋低解析度 | ✅ **預設** | 約 60 tokens/秒 |
+| ~~字幕層~~ | — | — | ❌ | Gemini 吃影片時本來就聽得到聲音，此層多餘 |
+| ~~全片掃描~~ | （v2 `fullscan`） | 整片產章節切段 | ❌ v2 | 單支 40 分鐘片 ≈ 144K tokens，是單一 clip 的 60 倍 |
 
 ### 請求規格
 
@@ -445,7 +451,7 @@ flowchart TD
 分析失敗（影片被設為私人、被刪除、Gemini 拒絕、配額用盡）時：
 
 - `status = 'failed'`，UI 顯示具體原因
-- 自動降級為 L0，使用者仍可手動填寫 `note` 與 tag
+- 自動降級為 `bookmark`，使用者仍可手動填寫 `note` 與 tag
 - 該 clip **一樣進得了檢索系統**，只是內容由人工提供
 
 **UI 絕不假設分析會成功。**
@@ -454,31 +460,95 @@ flowchart TD
 
 ## 七、縮圖策略
 
-### 主力：YouTube Storyboard
+> **命名注意**：本節的 `L0`~`L3` 是 **YouTube 定義的 storyboard 畫質層級**，是外部規格，改不了。
+> 與第六節的「分析模式」（`bookmark` / `segment`）完全無關 —— 那邊已刻意不用 L 編號。
+
+### 主力：YouTube Storyboard L3 單格
+
+| 決策 | 選擇 | 一句話理由 |
+|---|---|---|
+| 畫質層級 | **L3（320×180/格）** | 與 YouTube 播放器 hover 預覽同一層；L2 只有 160×90，放大就糊 |
+| 存放形態 | **裁成單張 WebP，一格一個 R2 物件** | 存整張 sheet 在儲存與頻寬上都沒有優勢，見下 |
+
+#### 為什麼不存整張 sheet
+
+實測 9 支影片，L3 單格重新編成 WebP q75，平均是 sheet 內每格的 **0.96 倍** —— 比原本還小。
+重編碼的世代損失讓檔案變大，但 WebP 比 YouTube 用的 JPEG 有效率，兩者剛好抵銷還有找。
+
+| | 整張 L3 sheet | 單格 WebP q75 |
+|---|---|---|
+| 實測平均 | 54.0 KB / 9 格 | 5.9 KB / 格 |
+| 換算門檻 | 一張 sheet 要標到 **9.2 格**才划算 | —— 但一張只有 9 格 |
+
+**門檻高於容量上限，代表存 sheet 永遠不會比較省。** 即使把某張 sheet 的 9 格全標了，
+存單張仍略勝。而真實的標記是稀疏的：
+
+| 平均幾個標記共用一張 sheet | 存 sheet | 存單張 |
+|---|---|---|
+| 1（各自分散，最常見） | 12.88 GB | **1.40 GB** |
+| 3 | 4.29 GB | **1.40 GB** |
+| 9（塞滿，不可能） | 1.43 GB | **1.40 GB** |
+
+*（以 5 萬標記點 × 5 張縮圖 = 25 萬格估算）*
+
+根本原因是 **L3 一張 sheet 只涵蓋 9 × 間隔秒**（5 秒間隔＝45 秒）。
+同一支影片相隔三分鐘的兩個標記就落在不同 sheet，locality 幾乎不存在。
+
+#### 對讀取路徑的影響（真正的決定因素）
+
+主頁時間軸與查詢結果**都是跨影片、依時間排序**，一屏 20 張縮圖來自 20 個不同時段：
+
+| | 一屏 20 張要傳輸 |
+|---|---|
+| 存 sheet | 20 × 54 KB ≈ **1.1 MB** |
+| 存單張 | 20 × 5.9 KB ≈ **118 KB** |
+
+差 9 倍，且這是手機 PWA，每次往下捲都付一次。
+單張另外換到三件事：原生 `<img loading="lazy">`（sheet 沒辦法只載入一部分）、
+跳轉冷區時的首次繪製、以及**與手動補圖統一的資料模型**
+（`clip.thumb_key` → 一個 R2 物件，不管來源是 storyboard 還是手機截圖）。
+
+### 流程
 
 ```
+建立 clip 時：
 1. Worker 抓 watch page HTML
 2. 正則撈出 playerStoryboardSpecRenderer 的 spec 字串
-3. 解析出 L3（或可用的最高 level）的參數：
-   width, height, frameCount, cols, rows, intervalMs, sigh
-4. 抓取所需的 sprite sheet（M0, M1, …）存入 R2
-5. 把解碼參數存進 video.sb_spec
-6. 前端用 CSS background-position 顯示指定格
+3. 解析出 L3 的參數：width, height, frameCount, cols, rows, intervalMs, sigh
+4. 算出該時間點的 frameIndex 與所在的 sheetIndex
+5. PWA 透過 Worker 代理取得那一張 sheet，canvas 裁出該格，編成 WebP q75
+6. 上傳成 R2 物件，key = {videoId}/L3/{frameIndex}.webp
+7. sheet 本身不留存；解碼參數存進 video.sb_spec（供「換一格」與日後重裁）
+8. 讀取時 <img loading="lazy" src="{thumb_key}">，不需要 sb_spec
 ```
 
-**不需要任何影像處理** —— 不裁切、不用 canvas、不用 WASM。
+**裁切在瀏覽器做，不在 Worker 做。** 瀏覽器原生就有 WebP 編碼器（`canvas.toBlob`），
+Worker 只負責轉送位元組，**不引入任何影像處理相依**（不用 WASM、不用 Cloudflare Images）。
+這與手動補圖走的是同一條路徑（該路徑本來就在前端 canvas 縮成 webp），實作一致。
+
+⚠️ 代理是必要的：`i.ytimg.com` 不回傳 CORS header，直接載入會讓 canvas 被 taint，
+`toBlob()` 會拋 `SecurityError`。Worker 代理讓 sheet 變成同源，canvas 才能用。
+
+⚠️ 代價：裁切依賴前端，**背景批次補圖也必須在開著的分頁裡跑**。
+若 v2 要做真正的伺服器端背景作業，屆時再引入 Worker WASM 編碼。
+
+`key` 用 `{videoId}/L3/{frameIndex}` 而非 clip id，**同一支影片相近時間的多個標記會落在同一格，天然去重**。
 
 給定時間 `t` 的定位公式：
 
 ```
-frameIndex  = floor(t / (intervalMs / 1000))
+frameIndex  = round(t / (intervalMs / 1000))     ← 取最近的一格
 perSheet    = cols * rows
 sheetIndex  = floor(frameIndex / perSheet)
 posInSheet  = frameIndex % perSheet
 row = floor(posInSheet / cols),  col = posInSheet % cols
 
-CSS: background-position: -(col * width)px  -(row * height)px
+裁切來源矩形: (col * width, row * height, width, height)
 ```
+
+`round` 而非 `floor`：對照 YouTube 播放器自己的 hover 預覽驗證過 —— 以間隔 5s 的影片實測，
+播放器在 100 與 105 的中點才換格，是四捨五入。用 `floor` 誤差落在 −interval~0
+（10 秒間隔的長片最差差 10 秒），`round` 則是 ±interval/2，且與使用者在 YouTube 上看到的一致。
 
 ### ⚠️ 這是非官方端點
 
@@ -495,10 +565,10 @@ YouTube 前端每隔數月改版，`playerStoryboardSpecRenderer` 的欄位名�
 
 **因此設計上必須假設它終將失效：**
 
-- 抓不到 spec → `video.sb_key` 留 null，退回整片封面 `img.youtube.com/vi/{id}/mqdefault.jpg`
+- 抓不到 spec → `video.sb_spec` 與 `clip.thumb_key` 留 null，退回整片封面 `img.youtube.com/vi/{id}/mqdefault.jpg`
 - UI 提示「無法取得逐段縮圖，可手動補圖」
 - **功能降級，絕不當機**
-- **已存入 R2 的 sprite 完全不受影響**，舊 clip 的縮圖繼續正常顯示；失效只影響「之後新加入的影片」
+- **已存入 R2 的單格縮圖完全不受影響**，舊 clip 的縮圖繼續正常顯示；失效只影響「之後新加入的影片」
 
 ### 健康偵測與告警
 
@@ -551,7 +621,7 @@ YouTube 前端每隔數月改版，`playerStoryboardSpecRenderer` 的欄位名�
 
 永遠可用、零技術風險的路徑。【📷 換縮圖】提供三個選項：
 
-- 從 storyboard 挑一格（左右滑選鄰近幾格）
+- 從 storyboard 挑一格（左右滑選鄰近幾格）—— 此時才即時取回整張 sheet，選定後一樣只存那一格
 - 從相簿選（Android 截圖後分享進來，或 App 內選圖）
 - 拍照
 
@@ -573,10 +643,10 @@ https://www.youtube.com/embed/{id}?start={start}&end={end}&autoplay=1&mute=1&pla
 
 | 資產 | 尺寸 | 存放 | 快取 |
 |---|---|---|---|
-| storyboard sprite | L3 = 320×180/格，整張約 20~70 KB | R2（簽名會過期，有效期不可知，**必須轉存**） | key 帶 hash，`Cache-Control: public, max-age=31536000, immutable`，走 Cloudflare CDN |
+| storyboard 單格 | L3 = 320×180，WebP q75，**約 5.9 KB/格**（實測 9 支影片平均） | R2（簽名會過期，有效期不可知，**必須轉存**） | key = `{videoId}/L3/{frameIndex}.webp`，`Cache-Control: public, max-age=31536000, immutable`，走 Cloudflare CDN |
 | 手動截圖 | 480×270 webp，約 20 KB | R2 | 同上 |
 
-500 個 clip 的總資產量約數十 MB，遠低於 R2 免費額度 10 GB。
+500 個 clip 的總資產量約 3 MB（500 × 5.9 KB），遠低於 R2 免費額度 10 GB。
 
 ---
 
@@ -738,7 +808,7 @@ https://www.youtube.com/embed/{id}?start={start}&end={end}&autoplay=1&mute=1&pla
 │ │ 備註…                 │ │
 │ └───────────────────────┘ │
 │ ┌───────────────────────┐ │
-│ │   🔍 AI 分析這段      │ │  ← 約 30 秒 · L2
+│ │   🔍 AI 分析這段      │ │  ← 約 30 秒 · 區間分析
 │ └───────────────────────┘ │
 │ ─────────────────────────  │
 │ 摘要 ________________  ↺  │
@@ -824,7 +894,7 @@ src/lib/server/repo/
 |---|---|
 | 1 | SvelteKit 骨架 + manifest + 四條路由 + mock repo + 全部 UI 與互動 |
 | 2 | D1 schema + migrations + `d1.ts` + Cloudflare Access |
-| 3 | YouTube metadata（Data API v3）+ storyboard 抓取與 R2 存放 + **健康偵測（失敗分類、Cron 金絲雀、告警橫幅）** |
+| 3 | YouTube metadata（Data API v3）+ storyboard 抓取、前端裁切單格、R2 存放 + **健康偵測（失敗分類、Cron 金絲雀、告警橫幅）** |
 | 4 | Gemini 分析（含 responseSchema、失敗降級、配額顯示） |
 | 5 | 檢索（查詢解析 + FTS5 + 排序）|
 | 6 | Web Share Target + PWA 安裝 |
@@ -841,11 +911,11 @@ Playwright，預設 viewport 使用 `devices['Pixel 7']`，跑在 mock 資料上
 2. 開啟工作台 → 按【標記此刻】→ clip 出現在列表且區間為 `[t-20, t+10]`
 3. 編輯 summary → 按【確認】→ `status` 變為 `reviewed`
 4. 搜尋 → 結果出現 → 點卡片 → iframe `src` 帶正確的 `start`/`end`
-5. 分析失敗（模擬 Gemini 拒絕）→ 正確降級為 L0 並顯示提示
+5. 分析失敗（模擬 Gemini 拒絕）→ 正確降級為 `bookmark` 並顯示提示
 6. storyboard 抓取失敗 → 正確退回整片封面且不當機
 7. **健康偵測不誤報** —— 模擬 `no_storyboard`（影片本身沒有）連續發生 → **不可告警**
 8. **健康偵測會告警** —— 模擬金絲雀連續 2 次 `parse_failed` → 頁首橫幅出現、設定頁顯示異常
-9. **降級不影響既有資料** —— 解析器失效時，已存 R2 的 sprite 縮圖仍正常顯示
+9. **降級不影響既有資料** —— 解析器失效時，已存 R2 的單格縮圖仍正常顯示
 
 **視覺回歸（screenshot diff）v1 不做。** UI 仍在快速變動的階段導入，會導致測試持續失敗、時間耗費在核可 baseline 而非開發。待 UI 穩定後再加入 `toHaveScreenshot()`，屆時 Playwright 專案已就緒，成本僅數行。
 
@@ -861,7 +931,7 @@ Playwright，預設 viewport 使用 `devices['Pixel 7']`，跑在 mock 資料上
 | YouTube Data API v3 | 影片 metadata | 10,000 units/日 | `videos.list` 1 unit/次 | $0 |
 | Cloudflare Workers | SvelteKit + API | 10 萬請求/日 | 每日數百 | $0 |
 | Cloudflare D1 | 資料庫 | 5 GB | 500 clips ≈ 1 MB | $0 |
-| Cloudflare R2 | storyboard + 手動截圖 | 10 GB、無 egress 費 | 數十 MB | $0 |
+| Cloudflare R2 | 縮圖單格 + 手動截圖 | 10 GB、無 egress 費 | 約 3 MB | $0 |
 | Cloudflare Access | Google 登入保護 | 50 人 | 1 人 | $0 |
 | YouTube | 影片託管 + 播放 | 無限 | unlisted | $0 |
 | 網域 | 網址 | `*.workers.dev` 免費 | 免費子網域 | $0 |
@@ -888,11 +958,11 @@ Gemini 免費層的資料**可能被用於改善模型**。使用者已知悉並
 | 部署 | Cloudflare Workers（static assets） | Wrangler |
 | 資料庫 | Cloudflare D1 + FTS5（**trigram** tokenizer） | 中文檢索品質考量 |
 | ORM | Drizzle（D1 dialect） | schema 與 migrations |
-| 物件儲存 | Cloudflare R2 | storyboard sprite + 手動截圖；無 egress 費 |
+| 物件儲存 | Cloudflare R2 | 縮圖單格 webp + 手動截圖；無 egress 費 |
 | 認證 | Cloudflare Access + Google IdP | 零程式碼，JWT email 即 `owner_id` |
 | AI | Gemini Flash（`gemini-flash-latest`） | 區間視覺分析 + 查詢解析 |
 | 影片 metadata | YouTube Data API v3（API key） | 不需 OAuth |
-| 縮圖 | YouTube storyboard（⚠️ 非官方）+ 手動上傳 | 必須有降級路徑與健康偵測 |
+| 縮圖 | YouTube storyboard **L3 單格**（⚠️ 非官方）+ 手動上傳 | 前端裁切；必須有降級路徑與健康偵測 |
 | 健康探測排程 | Cloudflare Cron Triggers | 免費層支援；每日跑一次金絲雀 |
 | 播放 | YouTube iframe embed（`start`/`end`） | 兼作「短片回放」 |
 | PWA | Web App Manifest + Share Target | Android |
@@ -907,8 +977,8 @@ Gemini 免費層的資料**可能被用於改善模型**。使用者已知悉並
 
 - 手機（Android）優先的 PWA，四條路由
 - 三個擷取入口：YT App 分享、截圖分享、站內播放器標記
-- L0（純書籤）與 L2（區間視覺分析）兩層
-- storyboard 縮圖 + 手動補圖（含降級路徑與健康偵測告警）
+- 純書籤（`bookmark`）與區間分析（`segment`）兩種模式
+- storyboard L3 單格縮圖 + 手動補圖（含降級路徑與健康偵測告警）
 - 人工校對：所有 AI 欄位可編輯、可還原
 - 自然語言檢索 + 就地區間回放
 - Cloudflare Access（Google 登入）
@@ -921,7 +991,7 @@ Gemini 免費層的資料**可能被用於改善模型**。使用者已知悉並
 |---|---|---|
 | 桌機版面 | v2 | 使用者明確指定先不管 PC |
 | Chrome 擴充功能 | **v2（確定要做）** | 使用者也會在 PC 上看影片，屆時需要 PC 端的一鍵擷取。因為所有資料都在伺服器端，**PC 擷取的 clip 會自動出現在手機上**，校對與觀看仍在手機完成 —— 不需要為此做桌機版面。擴充功能只需 POST `/api/clips`（`origin='extension'`），認證靠已登入的 Access cookie（`credentials: 'include'`），預估一百多行。 |
-| L3 全片掃描 | v2 | 單支 40 分鐘片 ≈ 144K tokens，且與「手動挑橋段」的產品核心不同調 |
+| 全片掃描（`fullscan`） | v2 | 單支 40 分鐘片 ≈ 144K tokens，且與「手動挑橋段」的產品核心不同調 |
 | 上傳實體照片 | v2 | 範圍明確限定為 YouTube 影片畫面 |
 | webm 短預覽檔 | ❌ 不做 | 需下載影片才能產生；iframe 就地播區間已達成相同體驗 |
 | Browser Rendering 精準截圖 | v2 | 免費層僅 10 分鐘/日，v1 以 storyboard + 手動補圖替代 |
@@ -1001,15 +1071,14 @@ Gemini 免費層的資料**可能被用於改善模型**。使用者已知悉並
 | token | 無 | 一小時到期，捲動途中需 401 → refresh → retry，且要收斂成單次 refresh |
 | 邊緣 | Cloudflare CDN | googleapis.com，每次驗 token，無邊緣快取 |
 
-規模實測：一張 L3 sprite = 3×3 = 9 格畫面、**21 KB**（實測 `320#180#108#3#3#2000`），
-故 500 clips **不等於** 500 個請求；估約 300 張 sprite ≈ **12 MB**。
-R2 免費額度 10 GB —— 需 **800 倍** 的量才開始付費。
+規模實測：L3 單格裁成 WebP q75 平均 **5.9 KB**（實測 9 支影片），
+故 500 clips ≈ **3 MB**。R2 免費額度 10 GB —— 需 **3000 倍** 的量才開始付費。
 
 > 用 R2 是一行 HTML；用 Drive 是自建一套圖片管線（載入排程 + 併發控制 + 自建快取 +
 > 淘汰策略 + blob 生命週期 + token 續期重試），約 200~400 行且是最難在手機上調對的那種。
 > 換到的是 12 MB 儲存空間。
 >
-> **storyboard sprite 本質是 YouTube 的可重建快取，不是使用者資料**，
+> **storyboard 縮圖本質是 YouTube 的可重建快取，不是使用者資料**，
 > 塞進使用者 Drive 配額等於讓他付出空間卻換不到所有權。**確定留在 R2。**
 
 ### 4. 若日後重啟此方向
@@ -1017,7 +1086,7 @@ R2 免費額度 10 GB —— 需 **800 倍** 的量才開始付費。
 不需推翻資料模型。第十一節的 `repo` 介面（`mock` / `d1`）即為此預留：
 Drive 只是第三套實作。建議形態為
 「瀏覽器 SQLite-WASM（沿用 FTS5 trigram）+ OPFS 本地副本 + Drive 存 append-only journal
-＋ **sprite 仍留 R2** ＋ Worker 維持無狀態」。
+＋ **縮圖仍留 R2** ＋ Worker 維持無狀態」。
 時機應在「真的有第二位使用者」或「真的看到容量壓力」之後，而非現在。
 
 ---
@@ -1055,7 +1124,7 @@ Drive 只是第三套實作。建議形態為
 | 路徑 | 評價 |
 |---|---|
 | (a) 改用 `hqdefault.jpg`，達成真・零後端 | ❌ 那是整支影片的封面，同片多 clip 縮圖全一樣，牴觸第七節「便於分辨同片不同片段」 |
-| (b) **保留一個無狀態端點 `GET /sb-spec?v={id}`** | ✅ **建議**。抓 watch page、regex 撈 spec、回 JSON。無狀態、無 DB、無密鑰，可快取；順便承載 sprite 代抓存 R2 與每日金絲雀（`sb_probe`） |
+| (b) **保留一個無狀態端點 `GET /sb-spec?v={id}`** | ✅ **建議**。抓 watch page、regex 撈 spec、回 JSON。無狀態、無 DB、無密鑰，可快取；順便承載 sheet 代理（補 CORS 讓前端能裁切）與每日金絲雀（`sb_probe`） |
 | (c) 公開 CORS proxy | ❌ 不可靠，且洩漏使用者看了哪些影片 |
 
 → 即使採用自帶金鑰，架構仍是「**近乎零後端**」而非零後端：中央只剩一個

@@ -1,5 +1,7 @@
 export type ClipStatus = 'inbox' | 'analyzing' | 'analyzed' | 'reviewed' | 'failed';
-export type AnalysisLevel = 'L0' | 'L2';
+// 分析模式。刻意不用 L0/L2 這種編號 —— storyboard 的 L0~L3 是 YouTube 定義的縮圖層級，
+// 兩者放在同一個專案裡撞名會誤導（見 storyboard.ts）。v2 會加 'fullscan'（全片掃描）。
+export type AnalysisMode = 'bookmark' | 'segment';
 export type ClipOrigin = 'web' | 'share' | 'extension' | 'pipeline';
 export type TagKind = 'person' | 'pet' | 'place' | 'topic' | 'other';
 export type Privacy = 'public' | 'unlisted' | 'unknown';
@@ -79,7 +81,7 @@ export interface Clip {
 	visualDesc: string;
 	thumbKey: string | null;
 	aiRaw: AiRaw | null;
-	analysisLevel: AnalysisLevel;
+	analysisMode: AnalysisMode;
 	status: ClipStatus;
 	origin: ClipOrigin;
 	createdAt: string;
