@@ -3,13 +3,9 @@
   "configurations": [
     {
       "name": "mockups",
-      "runtimeExecutable": "npx",
+      "runtimeExecutable": "pnpm",
       "runtimeArgs": [
-        "--yes",
-        "serve",
-        "mockups",
-        "-l",
-        "8231"
+        "mock"
       ],
       "port": 8231
     }
