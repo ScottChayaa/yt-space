@@ -10,6 +10,11 @@
 
 **規格來源：** [`docs/superpowers/specs/2026-08-07-yt-space-clip-design.md`](../specs/2026-08-07-yt-space-clip-design.md)
 
+> **本文件於第一階段完成後同步過一次命名。** 原文用 `AnalysisLevel = 'L0' | 'L2'`，
+> 後來因為與 storyboard 的畫質層級 `L0`~`L3` 撞名而改為 `AnalysisMode = 'bookmark' | 'segment'`。
+> 內文的程式碼片段已更新為現行命名，因此與當時實際提交的程式碼不完全逐字相同。
+> 同理，`frameAt` 的取整規則後來由 `floor` 改為 `round`，內文亦已同步。
+
 ## Global Constraints
 
 - **Svelte 5 runes 語法**：`$state()` / `$derived()` / `$props()` / `$effect()` / `$bindable()`。事件用屬性式 `onclick={...}`，**不可用** `on:click`。不可用 `export let`、`$:`、`<slot>`、`createEventDispatcher`。
@@ -348,7 +353,7 @@ git add -A && git commit -m "chore: 建立 SvelteKit 專案骨架與測試工具
 **Interfaces:**
 - Consumes: 無
 - Produces:
-  - 型別 `Video`、`Clip`、`Tag`、`ClipTag`、`AiRaw`、`Settings`、`ClipStatus`、`AnalysisLevel`、`ClipOrigin`、`TagKind`、`Privacy`、`StoryboardSpec`、`StoryboardLevel`、`FramePos`、`ParsedQuery`、`PlayerApi`
+  - 型別 `Video`、`Clip`、`Tag`、`ClipTag`、`AiRaw`、`Settings`、`ClipStatus`、`AnalysisMode`、`ClipOrigin`、`TagKind`、`Privacy`、`StoryboardSpec`、`StoryboardLevel`、`FramePos`、`ParsedQuery`、`PlayerApi`
   - `DEV_OWNER_ID: string`、`DEFAULT_SETTINGS: Omit<Settings, 'ownerId'>`
   - `secToMMSS(sec: number): string`
   - `mmssToSec(text: string): number | null`
@@ -359,7 +364,7 @@ git add -A && git commit -m "chore: 建立 SvelteKit 專案骨架與測試工具
 
 ```ts
 export type ClipStatus = 'inbox' | 'analyzing' | 'analyzed' | 'reviewed' | 'failed';
-export type AnalysisLevel = 'L0' | 'L2';
+export type AnalysisMode = 'bookmark' | 'segment';
 export type ClipOrigin = 'web' | 'share' | 'extension' | 'pipeline';
 export type TagKind = 'person' | 'pet' | 'place' | 'topic' | 'other';
 export type Privacy = 'public' | 'unlisted' | 'unknown';
@@ -439,7 +444,7 @@ export interface Clip {
 	visualDesc: string;
 	thumbKey: string | null;
 	aiRaw: AiRaw | null;
-	analysisLevel: AnalysisLevel;
+	analysisMode: AnalysisMode;
 	status: ClipStatus;
 	origin: ClipOrigin;
 	createdAt: string;
@@ -774,8 +779,9 @@ export function pickLevel(spec: StoryboardSpec, preferred = 3): StoryboardLevel 
 
 export function frameAt(level: StoryboardLevel, t: number): FramePos {
 	const perSheet = level.cols * level.rows;
-	const raw = Math.floor(Math.max(0, t) / (level.intervalMs / 1000));
-	const frameIndex = Math.min(raw, level.frameCount - 1);
+	// 取最近的一格，不是之前的一格（對照 YouTube 播放器 hover 預覽驗證）
+	const raw = Math.round(Math.max(0, t) / (level.intervalMs / 1000));
+	const frameIndex = Math.max(0, Math.min(raw, level.frameCount - 1));
 	const sheetIndex = Math.floor(frameIndex / perSheet);
 	const posInSheet = frameIndex % perSheet;
 	const col = posInSheet % level.cols;
@@ -932,7 +938,7 @@ describe('createClip', () => {
 			origin: 'web'
 		});
 		expect(clip.status).toBe('inbox');
-		expect(clip.analysisLevel).toBe('L0');
+		expect(clip.analysisMode).toBe('bookmark');
 		expect(clip.tags).toEqual([]);
 		const clips = await repo.listClipsByVideo(DEV_OWNER_ID, 'KUdmrPVssFA');
 		expect(clips.map((c) => c.id)).toContain(clip.id);
@@ -1134,7 +1140,7 @@ function seedClips(tags: Tag[]): Clip[] {
 			summary: '一群人在營地手忙腳亂地搭帳篷',
 			transcript: '這個角要先拉起來啦',
 			visualDesc: '草地上三個人合力撐起一頂綠色帳篷',
-			analysisLevel: 'L2',
+			analysisMode: 'segment',
 			status: 'reviewed',
 			tags: [
 				{ tag: tags[0], source: 'ai' },
@@ -1153,7 +1159,7 @@ function seedClips(tags: Tag[]): Clip[] {
 			summary: '阿明在溪邊踩滑跌進水裡',
 			transcript: '啊啊啊小心',
 			visualDesc: '溪流旁的石頭上有人失去平衡',
-			analysisLevel: 'L2',
+			analysisMode: 'segment',
 			status: 'analyzed',
 			tags: [
 				{ tag: tags[0], source: 'ai' },
@@ -1171,7 +1177,7 @@ function seedClips(tags: Tag[]): Clip[] {
 			summary: '',
 			transcript: '',
 			visualDesc: '',
-			analysisLevel: 'L0',
+			analysisMode: 'bookmark',
 			status: 'inbox',
 			tags: []
 		},
@@ -1186,7 +1192,7 @@ function seedClips(tags: Tag[]): Clip[] {
 			summary: '',
 			transcript: '',
 			visualDesc: '',
-			analysisLevel: 'L0',
+			analysisMode: 'bookmark',
 			status: 'inbox',
 			tags: []
 		}
@@ -1243,7 +1249,7 @@ export class MockRepo implements Repo {
 			visualDesc: '',
 			thumbKey: null,
 			aiRaw: null,
-			analysisLevel: 'L0',
+			analysisMode: 'bookmark',
 			status: 'inbox',
 			origin: input.origin,
 			createdAt: new Date().toISOString(),
