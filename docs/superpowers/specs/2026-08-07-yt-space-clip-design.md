@@ -143,12 +143,19 @@ L3 範例：320#180#25#3#3#1000#M$M#rs$AOn4CL...
 | 取樣間隔 | **1 秒/格** | **2 秒/格** |
 | sprite 大小 | 67 KB / 9 格 | 21 KB / 9 格 |
 
-**取樣間隔隨片長縮放** —— 短片精度高，長片較粗。標 `12:30` 可能取到 `12:28` 的畫面，對縮圖用途可接受。
+**取樣間隔隨片長縮放** —— 短片精度高，長片較粗（實測落在 2s / 5s / 10s 三檔，YouTube 固定總格數約 100~160 格反推間隔）。
+定位取「最近的一格」而非「之前的一格」（對照 YouTube 播放器 hover 預覽驗證），因此誤差為 **±間隔/2**：
+10 秒間隔的長片最差差 5 秒，對縮圖用途可接受。
 
 **兩項關鍵限制（實測確認）：**
 
-- `i.ytimg.com` **不回傳任何 CORS header** → 前端 canvas 會被 taint，**無法在瀏覽器端裁切**，必須由 Worker 代抓。
-- 回應 `cache-control: max-age=21600`（6 小時），且 URL 含會過期的 `sigh` 簽名 → **必須轉存 R2**，不能直接引用原始 URL。
+- `i.ytimg.com/sb/...`（storyboard 路徑）**不回傳任何 CORS header** → 前端 canvas 會被 taint，**無法在瀏覽器端裁切**，必須由 Worker 代抓。
+  （注意此限制**僅限 `/sb/` 路徑**：`i.ytimg.com/vi/{id}/hqdefault.jpg` 實測回 `access-control-allow-origin: *`。見第十八節。）
+- 回應 `cache-control: max-age=21600`，且 URL 含會過期的 `sigh` 簽名 → **必須轉存 R2**，不能直接引用原始 URL。
+  - ⚠️ `max-age=21600`（6 小時）是 **CDN 快取存活時間，不是簽章有效期**，兩者無關。
+    簽章實際多久失效**沒有對外承諾也量不出上限**：實測同一條 URL 在簽發 **70 小時後仍回 200**
+    （竄改 `sigh` 或拿掉 `sqp` 則立即 403，確認簽章確實有在驗）。
+    因此重抓排程**不可**依 6 小時設定；轉存 R2 的理由是「有效期不可知」，不是「6 小時到期」。
 
 ### 5. 為什麼 iframe 截不到畫面
 
@@ -566,7 +573,7 @@ https://www.youtube.com/embed/{id}?start={start}&end={end}&autoplay=1&mute=1&pla
 
 | 資產 | 尺寸 | 存放 | 快取 |
 |---|---|---|---|
-| storyboard sprite | L3 = 320×180/格，整張約 20~70 KB | R2（簽名 6 小時過期，**必須轉存**） | key 帶 hash，`Cache-Control: public, max-age=31536000, immutable`，走 Cloudflare CDN |
+| storyboard sprite | L3 = 320×180/格，整張約 20~70 KB | R2（簽名會過期，有效期不可知，**必須轉存**） | key 帶 hash，`Cache-Control: public, max-age=31536000, immutable`，走 Cloudflare CDN |
 | 手動截圖 | 480×270 webp，約 20 KB | R2 | 同上 |
 
 500 個 clip 的總資產量約數十 MB，遠低於 R2 免費額度 10 GB。
@@ -922,6 +929,7 @@ Gemini 免費層的資料**可能被用於改善模型**。使用者已知悉並
 | iOS 支援 | v2 | iOS Safari 不支援 Web Share Target，入口需改為剪貼簿貼上 + 相簿選圖 |
 | 向量搜尋（Vectorize） | v2 | FTS5 + trigram 先驗證品質是否足夠 |
 | 本機 pipeline（舊 spec） | v2 | 見第〇節 |
+| Google Drive + DuckDB 取代 D1/R2 | ❌ 不做 | 已評估並排除，見第十七節 |
 
 ---
 
@@ -935,3 +943,131 @@ Gemini 免費層的資料**可能被用於改善模型**。使用者已知悉並
 - **`[t-20, t+10]` 預設值是否合適** —— 已決定 v1 先採用此值，並在設定頁提供調整（見第十節），因此不是阻塞項；待實際使用後檢驗預設值本身是否需要改。
 - **Cloudflare Access 對 Workers 子網域的實際設定步驟** —— 已確認 `*.pages.dev` 可行；Workers static assets 的設定路徑需實作時確認。
 - **批次分析時同影片多 clip 能否合併為單一 Gemini 請求** —— Gemini 2.5 以上支援單次請求多個影片，但同一影片的多個區間能否一次送出未經驗證。
+- **是否採用使用者自帶 Gemini 金鑰** —— 已驗證技術可行（第十八節）；採用與否取決於
+  「onboarding 摩擦」與「中央不再持有金鑰/配額壓力」之間的取捨，非阻塞項。
+
+---
+
+## 十七、已評估並排除：Google Drive + DuckDB
+
+> 評估日期：2026-08-26。動機為「把資料庫與儲存空間轉嫁到個人使用者的空間」，
+> 以消除中央持有他人資料的問題與 D1 容量天花板（見第八節）。查詢效率可接受降級。
+> **結論：排除。** 以下為實測與推導依據。
+
+### 1. DuckDB 是選錯工具
+
+- **duckdb-wasm 送不出 auth header**（[duckdb-wasm#1967](https://github.com/duckdb/duckdb-wasm/issues/1967)）。
+  wasm 版不是 native httpfs，而是另一套受瀏覽器規則限制的 HTTP 實作，
+  native 的 `CREATE SECRET ... EXTRA_HTTP_HEADERS` / `BEARER_TOKEN` 不生效。
+  Drive 檔案必須帶 `Authorization` → **DuckDB 直接 range 讀 Drive 這條路是斷的**。
+- **但本系統也不需要 range 讀**：500 clips ≈ 1 MB（見第十三節），整包下載不到一秒。
+  DuckDB 的招牌能力（只抓 Parquet 需要的 byte range）是為數百 MB~GB 檔案設計的。
+- 一旦確定「整包下載到瀏覽器查詢」，DuckDB 全面輸給 SQLite-WASM：
+  bundle 2.8 MB gzip + 擴充 1~2 MB vs 約 1 MB；OLAP 欄式掃描 vs 本系統實際的
+  OLTP 小查詢 + join；且 **FTS5 trigram（第四節已定案）可原封不動沿用**。
+  → **若未來真要走「使用者自帶空間」，引擎應是 SQLite-WASM，不是 DuckDB。**
+
+### 2. Drive 作為資料庫後端：可行但代價高
+
+實測（2026-08-26）確認的正面事實：
+
+- Drive 媒體端點的 CORS **允許 `Range`**（preflight 回 `access-control-allow-headers: range,authorization`）。
+  網路上「Google 擋 Range」的說法已過時。
+- Drive 讀取與上傳端點的 preflight 皆通過 → 瀏覽器可直接讀寫。
+- **scope 用 `drive.file`（非敏感，免 Google 驗證）**，不要用 `drive.appdata`（敏感，需送審）。
+- ⚠️ **OAuth app 必須發佈到 Production**。Testing 狀態的 refresh token **7 天即過期**，
+  對「手機優先、隨手標記」是致命的。僅用非敏感 scope 時發佈不需審核。
+
+負面事實：
+
+- **無並發控制**。Drive v3 的 File 資源已移除 `etag`，`files.update` 沒有可靠的
+  `If-Match` 樂觀鎖 → 兩台裝置同時標記會 lost update。
+  唯一乾淨解是 append-only journal（每次寫一個小檔）+ 定期 compaction，這層同步邏輯要自己寫自己測。
+- 伺服器端搜尋消失、`sb_probe` 金絲雀無處可寫、`tag_month_agg` 彙總設計失去意義、
+  跨裝置一致性變成自己的工作、資料在使用者手上導致無法除錯。
+
+### 3. 縮圖搬 Drive 是最差的一塊（決定性理由）
+
+原始動機是「`sigh` 簽章有效期不可知，storyboard 可能消失，所以要留副本」——
+這個判斷正確，但**它只推導出「要存」，沒有推導出「存在哪」**。Drive 與 R2 在保存上等價，
+差別全在**服務**：
+
+| | R2（現行） | Drive |
+|---|---|---|
+| 前端寫法 | `<img loading="lazy" src="...">`，零 JS | 必帶 `Authorization` → `<img>`/CSS 完全不能用，只能 fetch → blob → objectURL |
+| 延遲載入 | 瀏覽器原生 | 自己寫 IntersectionObserver + 併發上限佇列 |
+| 快取 | `immutable` + CDN，之後冷開機 **0 請求** | `private, max-age=0` 且 blob 不吃 HTTP 快取 → 自建 Cache Storage + 淘汰策略 |
+| 記憶體 | 瀏覽器代管 | 自己抓 `revokeObjectURL` 時機；早了空白、晚了堆積 |
+| token | 無 | 一小時到期，捲動途中需 401 → refresh → retry，且要收斂成單次 refresh |
+| 邊緣 | Cloudflare CDN | googleapis.com，每次驗 token，無邊緣快取 |
+
+規模實測：一張 L3 sprite = 3×3 = 9 格畫面、**21 KB**（實測 `320#180#108#3#3#2000`），
+故 500 clips **不等於** 500 個請求；估約 300 張 sprite ≈ **12 MB**。
+R2 免費額度 10 GB —— 需 **800 倍** 的量才開始付費。
+
+> 用 R2 是一行 HTML；用 Drive 是自建一套圖片管線（載入排程 + 併發控制 + 自建快取 +
+> 淘汰策略 + blob 生命週期 + token 續期重試），約 200~400 行且是最難在手機上調對的那種。
+> 換到的是 12 MB 儲存空間。
+>
+> **storyboard sprite 本質是 YouTube 的可重建快取，不是使用者資料**，
+> 塞進使用者 Drive 配額等於讓他付出空間卻換不到所有權。**確定留在 R2。**
+
+### 4. 若日後重啟此方向
+
+不需推翻資料模型。第十一節的 `repo` 介面（`mock` / `d1`）即為此預留：
+Drive 只是第三套實作。建議形態為
+「瀏覽器 SQLite-WASM（沿用 FTS5 trigram）+ OPFS 本地副本 + Drive 存 append-only journal
+＋ **sprite 仍留 R2** ＋ Worker 維持無狀態」。
+時機應在「真的有第二位使用者」或「真的看到容量壓力」之後，而非現在。
+
+---
+
+## 十八、已驗證可行、尚未採用：使用者自帶 Gemini 金鑰
+
+> 評估日期：2026-08-26。**結論：技術上可行，實測通過，保留為選項。**
+> 這原本就是舊 spec 第六節的多租戶策略（「每租戶帶自己的免費 Gemini 金鑰」），
+> 此處確認它可以提前到 v1，並連帶讓本專案逼近「純前端、無伺服器狀態」。
+
+### 1. 實測 CORS 矩陣（2026-08-26）
+
+| 端點 | 瀏覽器可直接呼叫 | 實測 |
+|---|---|---|
+| Gemini `generativelanguage.googleapis.com` | ✅ | preflight 200，`allow-headers: content-type,x-goog-api-key` |
+| YouTube Data API v3 | ✅ | preflight 200，`allow-headers: authorization` |
+| Google Drive API（讀 + 上傳） | ✅ | 兩端點 preflight 皆 200 |
+| Google OAuth（GIS + PKCE） | ✅ | 本即為瀏覽器設計 |
+| `i.ytimg.com/vi/{id}/hqdefault.jpg` | ✅ | **`access-control-allow-origin: *`**、無簽章、不會過期 |
+| `i.ytimg.com/sb/...`（storyboard sprite） | ⚠️ | **無任何 CORS header**（確認第二節的記載） |
+| `youtube.com/watch` HTML | ❌ | **無任何 CORS header** |
+| `youtubei/v1/player`（InnerTube） | ❌ | preflight 直接 **403** |
+| `youtube.com/oembed` | ✅ | 有 CORS，但只給標題/作者/預設縮圖，**無 storyboard** |
+
+> 澄清一個易誤解點：sprite 無 CORS **不代表不能顯示**。CORS 只擋「讀取像素」（fetch / canvas）。
+> 用 `<img>` 或 CSS `background-image` 顯示完全可行，故「CSS `background-position` 切格子」
+> 在純前端亦成立。
+
+### 2. 唯一的阻塞點
+
+**取得 storyboard spec 字串。** 該字串只存在於 watch page HTML 的
+`playerStoryboardSpecRenderer`，而 watch page 與 InnerTube 皆不給 CORS。
+其餘所有外部依賴都可從瀏覽器直呼。三條路：
+
+| 路徑 | 評價 |
+|---|---|
+| (a) 改用 `hqdefault.jpg`，達成真・零後端 | ❌ 那是整支影片的封面，同片多 clip 縮圖全一樣，牴觸第七節「便於分辨同片不同片段」 |
+| (b) **保留一個無狀態端點 `GET /sb-spec?v={id}`** | ✅ **建議**。抓 watch page、regex 撈 spec、回 JSON。無狀態、無 DB、無密鑰，可快取；順便承載 sprite 代抓存 R2 與每日金絲雀（`sb_probe`） |
+| (c) 公開 CORS proxy | ❌ 不可靠，且洩漏使用者看了哪些影片 |
+
+→ 即使採用自帶金鑰，架構仍是「**近乎零後端**」而非零後端：中央只剩一個
+無狀態 Worker，且它持有的只有 YouTube 公開內容的快取，**不含任何使用者個人資料**。
+
+### 3. 自帶金鑰的取捨
+
+- **金鑰會暴露在瀏覽器**（devtools 可見）。但那是使用者自己的金鑰，爆炸半徑限於他自己的
+  免費額度 —— 在自帶金鑰模式下屬可接受風險。
+- **referrer 限制靠不住**：GCP Console 建的 key 可綁 HTTP referrer，但 AI Studio 直接產的
+  Gemini key 歷來不支援應用程式限制（待實作時確認）；且 referrer 本可偽造。
+  **至少要做 API 限制：將該 key 限縮為只能呼叫 Generative Language API。**
+- **真正的代價是 onboarding 摩擦**：使用者需自行到 AI Studio 開專案、產金鑰、貼進設定頁。
+  對「分享給親友」這個受眾，這是一道會實質勸退人的牆。技術上零成本，產品上不是。
+- 附帶收穫：Cloudflare Access 在此模式下不再必要（Google 登入即認證）。
