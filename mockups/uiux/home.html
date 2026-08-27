@@ -11,9 +11,8 @@
   <!-- 頂列：查詢時間（單擊選定年月 → 只顯示該月含以前的資料）-->
   <div class="topbar">
     <button class="date-trigger" id="dateTrigger">
-      <span class="tlabel" id="dateLabel">查詢時間</span>
+      <span class="tlabel" id="dateLabel"></span>
     </button>
-    <button class="date-clear" id="clearDate" aria-label="清除時間"></button>
   </div>
 
   <div class="grid-scroll" id="grid"></div>
@@ -33,7 +32,6 @@
   document.getElementById('nav').innerHTML = APP.renderNav('home');
   document.getElementById('dateTrigger').insertAdjacentHTML('afterbegin', APP.svg(APP.ICONS.calendar, 'ic'));
   document.getElementById('dateTrigger').insertAdjacentHTML('beforeend', APP.svg(APP.ICONS.chevronDown, 'ic'));
-  document.getElementById('clearDate').innerHTML = APP.svg(APP.ICONS.close, 'ic');
 
   // 只顯示已完成（reviewed）的 clip，依事件日期新到舊
   const reviewed = M.CLIPS.filter(c => c.status === 'reviewed')
@@ -41,14 +39,15 @@
 
   const grid = document.getElementById('grid');
   const LS_KEY = 'ytspace_home_upto';
-  let upTo = localStorage.getItem(LS_KEY) || '';   // '' = 不限，顯示全部
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  let upTo = localStorage.getItem(LS_KEY) || thisMonth;   // 預設＝本月
   let groups = [];
 
   // 依「年月」分組建立網格（月份 desc）；比 upTo 更新的月份不顯示
   function render() {
     grid.innerHTML = '';
     groups = [];
-    const list = reviewed.filter(c => !upTo || c.eventDate.slice(0, 7) <= upTo);
+    const list = reviewed.filter(c => c.eventDate.slice(0, 7) <= upTo);
     document.getElementById('empty').style.display = list.length ? 'none' : 'block';
 
     let lastKey = null, container = null, group = null;
@@ -83,22 +82,16 @@
   /* 套用時間：只保留該月（含）以前的資料 —— 最上方就是該月，往下滑即往更早 */
   function apply(key) {
     upTo = key;
-    document.getElementById('dateLabel').textContent = key ? APP.monthLabel(key) + ' 以前' : '查詢時間';
-    key ? localStorage.setItem(LS_KEY, key) : localStorage.removeItem(LS_KEY);
+    document.getElementById('dateLabel').textContent = APP.monthLabel(key) + ' 以前';
+    localStorage.setItem(LS_KEY, key);
     render();
     window.scrollTo({ top: 0 });
   }
 
-  document.getElementById('dateTrigger').onclick = () => APP.openMonthPicker({
-    value: upTo,
-    title: '選擇時間',
-    onPick: apply,
-    onClear: () => apply('')
-  });
-  document.getElementById('clearDate').onclick = () => apply('');
+  document.getElementById('dateTrigger').onclick = () => APP.openMonthPicker({ value: upTo, onPick: apply });
 
   history.scrollRestoration = 'manual';   // 避免瀏覽器自動還原捲動位置蓋掉上面的 scrollTo
-  apply(upTo);                            // 還原上次選定的時間（無則顯示全部）
+  apply(upTo);                            // 還原上次選定的時間（無則本月）
 </script>
 </body>
 </html>

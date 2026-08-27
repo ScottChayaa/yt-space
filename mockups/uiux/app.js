@@ -189,8 +189,7 @@ function ensureMonthPicker() {
   bd = document.createElement('div'); bd.id = 'mpBackdrop'; bd.className = 'dp-backdrop';
   const panel = document.createElement('div'); panel.id = 'mpPanel'; panel.className = 'dp-panel';
   panel.innerHTML = `<div class="handle"></div>
-    <div class="dp-head"><span id="mpTitle">選擇起始月份</span><button class="dp-clear" id="mpClear">清除</button></div>
-    <div class="dp-hint">點一次即選定；只顯示該月份（含）以前的資料</div>
+    <div class="dp-head" id="mpHead"><span id="mpTitle"></span><button class="dp-clear" id="mpClear">清除</button></div>
     <div class="dp-years" id="mpYears"></div>`;
   document.body.append(bd, panel);
   bd.addEventListener('click', closeMonthPicker);
@@ -201,15 +200,19 @@ function closeMonthPicker() {
 }
 function openMonthPicker(opts = {}) {
   ensureMonthPicker();
-  const { value = '', title = '選擇起始月份', onPick, onClear } = opts;
+  const { value = '', title = '', onPick, onClear } = opts;   // title / onClear 都沒給 → 整條標題列隱藏
   // 資料涵蓋年份（以 reviewed clip 為準）
   const months = M.CLIPS.map(c => c.eventDate.slice(0, 7));
-  const minY = +months.reduce((a, b) => a < b ? a : b).slice(0, 4);
-  const maxY = +months.reduce((a, b) => a > b ? a : b).slice(0, 4);
+  // 年份範圍取資料涵蓋區間，並確保目前選定的月份一定在清單內
+  const vY = value ? +value.slice(0, 4) : null;
+  const minY = Math.min(+months.reduce((a, b) => a < b ? a : b).slice(0, 4), vY ?? Infinity);
+  const maxY = Math.max(+months.reduce((a, b) => a > b ? a : b).slice(0, 4), vY ?? -Infinity);
   // 有資料的月份（無資料者淡化但仍可點）
   const has = new Set(months);
 
+  document.getElementById('mpHead').style.display = (title || onClear) ? '' : 'none';
   document.getElementById('mpTitle').textContent = title;
+  document.getElementById('mpClear').style.display = onClear ? '' : 'none';
   const yearsEl = document.getElementById('mpYears');
   yearsEl.innerHTML = '';
   for (let y = maxY; y >= minY; y--) {           // 年份 desc
