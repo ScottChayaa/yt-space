@@ -2,7 +2,7 @@
 
 > 從任何 YouTube 影片挑出畫面，成為可依時間瀏覽、依標籤與語意檢索的個人圖庫（手機優先）
 > 建立日期：2026-08-27
-> 狀態：設計確認完成（待使用者複審）
+> 狀態：第一輪複審修訂完成（待使用者確認）
 
 ---
 
@@ -19,7 +19,7 @@
 | 入口數量 | 三個（YT App 分享／截圖分享／播放器標記） | **一個**（導覽列中間的【取圖】） |
 | AI 分析 | 建立後 3 分鐘自動送 Gemini | **v1 不做，列為第四步、v2 追加** |
 | 待處理佇列 | `/inbox` 代辦頁 | **移除**（沒有 AI 就沒有待處理狀態） |
-| 首頁 | 檢索框 | **年月縮圖牆**（immich 式，已在 mockup 實現） |
+| 首頁 | 檢索框 | **年月縮圖牆**（immich 形式，已在 mockup 實現） |
 
 三份規格的關係：
 
@@ -190,103 +190,130 @@ YouTube iframe 是跨來源內容，瀏覽器安全模型禁止讀取其像素�
 6. **多租戶就緒**：`owner_id` 來自 Cloudflare Access JWT 的 email，所有查詢以其隔離。
 7. **功能降級，絕不當機**：storyboard 是非官方端點，必須假設它終將失效（見第七節）。
 
-### 專案結構
+### 渲染模式：這是 SPA 嗎？
+
+不是純 SPA，是 **SvelteKit 預設的「SSR + 客戶端路由」混合模式**，行為上最接近使用者的直覺是：
+
+- **第一次開頁**：Worker 做伺服器端渲染（SSR），首屏直接是完整 HTML，手機上首載最快。
+- **之後的所有導覽**：走客戶端路由，不重新整理頁面 —— **體感上就是 SPA**。取圖精靈四步之間的切換全在前端，狀態不落地。
+
+不採用純 SPA（`adapter-static` + `ssr=false`）的理由：API 與頁面同一個 Worker 出，SSR 幾乎是免費拿到的；而 PWA 的安裝與離線快取兩種模式都做得到。v3 自架版換 `adapter-node` 後此模式照常成立（見第十八節）。
+
+### 專案結構（pnpm workspace + Turborepo）
+
+**採用 Turborepo。** 誠實說：只有一個 app 時 monorepo 是殺雞用牛刀，但本專案實際有三個回本點 —— ① 金絲雀探測是獨立的 Cron Worker（見第七節），與主應用分開部署；② `storyboard` 解析與 Drizzle schema 需要被 web 與 probe 兩端共用；③ v3 自架版會是第三個 app（見第十八節），屆時直接共用 packages。
 
 ```
-yt-space/
-├── src/
-│   ├── routes/
-│   │   ├── +page.svelte              # 首頁：年月縮圖牆
-│   │   ├── search/+page.svelte       # 查詢：標籤／文字
-│   │   ├── capture/+page.svelte      # ★ 取圖精靈（四步驟）
-│   │   ├── v/[videoId]/+page.svelte  # 詳情：播放 + 就地編輯
-│   │   ├── settings/+page.svelte     # 設定
-│   │   └── api/
-│   │       ├── shots/+server.ts
-│   │       ├── shots/[id]/+server.ts
-│   │       ├── shots/batch/+server.ts    # 批次套用圖資
-│   │       ├── search/+server.ts
-│   │       ├── facets/+server.ts         # 標籤＋地點輪播
-│   │       ├── video/[videoId]/+server.ts # metadata + sb_spec
-│   │       ├── sheet/+server.ts          # storyboard sheet 代理
-│   │       └── thumbs/+server.ts         # 單格 webp 上傳至 R2
-│   └── lib/
-│       ├── server/
-│       │   ├── repo/{types,mock,d1}.ts
-│       │   ├── youtube.ts            # metadata + storyboard 解析
-│       │   ├── gemini.ts             # 查詢解析（v2 追加影片分析）
-│       │   └── auth.ts               # Access JWT → owner_id
-│       ├── capture/                  # 精靈專用元件與狀態
-│       │   ├── wizard.svelte.ts      # 四步驟狀態機 + 草稿存取
-│       │   ├── ShotGrid.svelte       # 縮圖牆
-│       │   ├── MetaDrawer.svelte     # 第三步的圖資抽屜
-│       │   └── similarity.ts         # 感知雜湊（瀏覽器端）
-│       ├── storyboard.ts             # spec 解析 / 定位（已存在）
-│       └── components/               # Thumb / TagChip / Player …
-├── static/manifest.webmanifest
-├── tests/e2e/
-├── migrations/
-└── wrangler.toml
+yt-space/（pnpm workspace + Turborepo）
+├── turbo.json
+├── pnpm-workspace.yaml
+├── apps/
+│   ├── web/                              # 主應用：SvelteKit PWA + API
+│   │   ├── src/
+│   │   │   ├── routes/
+│   │   │   │   ├── +page.svelte              # 首頁：年月縮圖牆
+│   │   │   │   ├── search/+page.svelte       # 查詢：標籤／文字
+│   │   │   │   ├── capture/+page.svelte      # ★ 取圖精靈（四步驟）
+│   │   │   │   ├── v/[videoId]/+page.svelte  # 詳情：播放 + 影片層級管理
+│   │   │   │   ├── settings/+page.svelte     # 設定
+│   │   │   │   └── api/
+│   │   │   │       ├── shots/+server.ts
+│   │   │   │       ├── shots/[id]/+server.ts
+│   │   │   │       ├── shots/batch/+server.ts     # 批次套用圖資
+│   │   │   │       ├── search/+server.ts
+│   │   │   │       ├── facets/+server.ts          # 標籤＋地點輪播
+│   │   │   │       ├── video/[videoId]/+server.ts # metadata + sb_spec；DELETE = 刪整支收藏
+│   │   │   │       ├── sheet/+server.ts           # storyboard sheet 代理
+│   │   │   │       └── thumbs/+server.ts          # 單格 webp 上傳至 R2
+│   │   │   └── lib/
+│   │   │       ├── server/
+│   │   │       │   ├── repo/{types,mock,d1}.ts
+│   │   │       │   ├── youtube.ts        # metadata 取得（storyboard 解析在 packages/storyboard）
+│   │   │       │   ├── gemini.ts         # 查詢解析（v2 追加影片分析）
+│   │   │       │   └── auth.ts           # Access JWT → owner_id
+│   │   │       ├── capture/              # 精靈專用元件與狀態
+│   │   │       │   ├── wizard.svelte.ts  # 四步驟狀態機 + 草稿存取
+│   │   │       │   ├── ShotGrid.svelte   # 縮圖牆
+│   │   │       │   ├── MetaDrawer.svelte # 第三步的圖資抽屜
+│   │   │       │   └── similarity.ts     # 感知雜湊（瀏覽器端）
+│   │   │       ├── Lightbox.svelte       # 全屏檢視器（見第六節）
+│   │   │       └── components/           # Thumb / TagChip / Player …
+│   │   ├── static/manifest.webmanifest
+│   │   ├── tests/e2e/
+│   │   └── wrangler.toml
+│   └── probe/                            # 金絲雀探測 Cron Worker（見第七節）
+│       ├── src/index.ts                  # 每日探測 + 孤兒縮圖清理
+│       └── wrangler.toml                 # 綁同一個 D1 / R2
+└── packages/
+    ├── storyboard/                       # spec 解析／定位（web 與 probe 共用；即現在的 src/lib/storyboard.ts）
+    └── schema/                           # Drizzle schema + migrations + 共用型別
 ```
 
 ---
 
 ## 四、資料模型（D1）
 
+> **欄位命名規則：凡是由 AI 產生或輔助的欄位，一律加 `ai_` 前綴**，一眼可辨哪些內容未經人工輸入。
+
 ```
 video ── 被取過圖的 YouTube 影片（不一定屬於使用者）
-  ├─ id              YouTube Video ID（PK）
-  ├─ owner_id        Cloudflare Access JWT 的 email
-  ├─ title           YT 標題
-  ├─ channel_title   上傳者
-  ├─ published_at    YT 上傳日期
-  ├─ recorded_at     YT 拍攝日期（recordingDetails.recordingDate，多為 null）
-  ├─ duration_sec    影片總長
-  ├─ privacy         'public' | 'unlisted' | 'unknown'
-  ├─ sb_spec         storyboard 解碼參數 JSON；抓不到時為 null
-  └─ added_at
+  ├─ id              YouTube Video ID，即網址裡的 11 碼（PK）
+  ├─ owner_id        擁有者識別，值為登入者的 email；所有查詢以此隔離（見第九節）
+  ├─ title           影片標題，取自 YT metadata，唯讀
+  ├─ channel_title   上傳頻道名稱，取自 YT metadata，唯讀
+  ├─ published_at    YT 上傳日期，必定有值
+  ├─ recorded_at     YT 拍攝日期（recordingDetails.recordingDate）；上傳者選填，多為 null
+  ├─ duration_sec    影片總長（秒），用於手動補圖的時間上限與 AI 區間裁切
+  ├─ privacy         隱私狀態：'public'（公開）| 'unlisted'（不公開）| 'unknown'（判不出來）
+  ├─ sb_spec         storyboard 解碼參數 JSON（哪個層級、幾格、間隔幾秒、簽章…）；
+  │                  只在取圖／重裁縮圖時用到，不在瀏覽讀取路徑上；抓不到時為 null
+  └─ added_at        第一次對這支影片取圖的時間（圖庫收錄時間，非 YT 的任何日期）
 
 shot ── 使用者從影片挑出的單一畫面（本系統的第一級公民）
-  ├─ id
-  ├─ video_id        → video.id
-  ├─ owner_id
-  ├─ at_sec          ★ 這張圖在影片的第幾秒（唯一的時間欄位）
-  ├─ frame_index     storyboard 第幾格；手動補圖時為 null
-  ├─ source          'storyboard' | 'manual'
-  ├─ event_date      ★ 事件發生日期（首頁分組依據），預設見下方
-  ├─ place           ★ 地點（獨立欄位，非標籤）
-  ├─ description     使用者填寫的描述，允許留空
-  ├─ thumb_key       R2 縮圖 key，一律有值
-  ├─ transcript      （v2）AI 聽到的內容
-  ├─ visual_desc     （v2）AI 看到的畫面
-  ├─ ai_raw          （v2）AI 原始輸出 JSON 快照，供還原
-  └─ created_at
+  ├─ id              流水號（PK）
+  ├─ video_id        屬於哪支影片 → video.id
+  ├─ owner_id        擁有者識別，同 video.owner_id
+  ├─ at_sec          ★ 這張圖在影片的第幾秒（唯一的時間軸欄位；播放與 AI 區間都由它推導）
+  ├─ frame_index     storyboard 的第幾格，用於去重（同格不重複收）；手動補圖為 null
+  ├─ source          畫面來源：'storyboard'（YT 縮圖裁出）| 'manual'（使用者自己上傳）
+  ├─ event_date      ★ 事件發生日期，首頁年月分組的依據；預設值鏈見下方，可改
+  ├─ place           ★ 地點，獨立欄位（非標籤）；查詢頁與標籤混排在同一條輪播
+  ├─ description     使用者手寫的描述；允許留空，是 FTS 全文檢索的主要素材
+  ├─ thumb_key       R2 縮圖物件的 key，一律有值（storyboard 裁格或手動上傳皆同一形態）
+  ├─ ai_transcript   （v2）AI 聽到的語音內容；v1 恆為 null
+  ├─ ai_visual_desc  （v2）AI 看到的畫面描述；與 description 並存，不互相覆蓋；v1 恆為 null
+  ├─ ai_raw          （v2）AI 原始輸出的 JSON 快照，唯讀，供「還原成 AI 原版」；v1 恆為 null
+  └─ created_at      這張 shot 入庫的時間
 
-tag ── 標籤與暱稱
-  ├─ id, owner_id
-  ├─ name            "小橘" / "露營" / "阿明"
-  ├─ kind            'person' | 'pet' | 'topic' | 'other'
-  └─ aliases         JSON，如 ["我家的貓","橘貓"]
+tag ── 標籤與暱稱（人／寵物／主題；地點已獨立成 shot.place，不在此）
+  ├─ id              流水號（PK）
+  ├─ owner_id        擁有者識別
+  ├─ name            標籤顯示名，如 "小橘" / "露營" / "阿明"
+  ├─ kind            分類：'person'（人）| 'pet'（寵物）| 'topic'（主題）| 'other'（其他）
+  └─ aliases         別名 JSON 陣列，如 ["我家的貓","橘貓"]；檢索時視同 name
 
-shot_tag
-  ├─ shot_id, tag_id
-  └─ source          'human'（v2 加 'ai'）
+shot_tag ── shot 與 tag 的多對多關聯
+  ├─ shot_id         → shot.id
+  ├─ tag_id          → tag.id
+  └─ source          這條關聯誰建立的：'human'（v1 唯一值）；v2 加 'ai'（AI 推測、待人工確認）
 
-shot_fts（FTS5 虛擬表，tokenizer = trigram）
-  └─ 索引 description + place（v2 追加 transcript + visual_desc）
+shot_fts ── FTS5 全文檢索虛擬表（tokenizer = trigram，中文友善）
+  └─ 索引 description + place（v2 追加 ai_transcript + ai_visual_desc）
 
-facet_month_agg ── 查詢頁輪播用的月份彙總（見第八節）
-  ├─ owner_id
-  ├─ ym              事件月份 'YYYY-MM'
-  ├─ facet_type      'tag' | 'place'
-  ├─ facet_key       tag_id 或 place 字串
-  ├─ count
+facet_month_agg ── 查詢頁輪播用的月份彙總，讓輪播讀取量與 shot 總數脫鉤（見第八節）
+  ├─ owner_id        擁有者識別
+  ├─ ym              事件月份 'YYYY-MM'（取自 shot.event_date）
+  ├─ facet_type      彙總對象種類：'tag' | 'place'
+  ├─ facet_key       tag 時為 tag_id、place 時為地點字串
+  ├─ count           該月該 facet 的 shot 數；shot 增刪改時同步增減
   └─ PRIMARY KEY (owner_id, ym, facet_type, facet_key)
 
-sb_probe ── storyboard 解析器健康紀錄（見第七節）
-  ├─ id, video_id, kind('real'|'canary')
-  ├─ result          'ok' | 'no_storyboard' | 'parse_failed' | 'fetch_failed'
-  └─ probed_at
+sb_probe ── storyboard 解析器健康紀錄（營運用，前端不讀；見第七節）
+  ├─ id              流水號（PK）
+  ├─ video_id        被探測的影片；金絲雀探測時為固定的 canary ID
+  ├─ kind            'real'（真實取圖時順帶記錄）| 'canary'（排程探測）
+  ├─ result          'ok' | 'no_storyboard'（影片本身沒有）| 'parse_failed'（解析器疑似失效）| 'fetch_failed'（網路問題）
+  └─ probed_at       探測時間
 ```
 
 ### 相對舊 spec 的變動
@@ -298,12 +325,12 @@ sb_probe ── storyboard 解析器健康紀錄（見第七節）
 | **移除** | `analysis_mode` | 只剩一種入庫形態。 |
 | **移除** | `origin` | 只剩一個入口。 |
 | **移除** | `status` | 沒有 AI 就沒有 `inbox`/`analyzing`/`failed` 狀態；存進去就是完成。 |
-| **合併** | `note` + `summary` → `description` | 舊設計中 `note` 是人寫的、`summary` 是 AI 寫的。v1 沒有 AI，兩欄合一；v2 的 AI 產出寫進 `visual_desc`，不覆蓋 `description`。 |
+| **合併** | `note` + `summary` → `description` | 舊設計中 `note` 是人寫的、`summary` 是 AI 寫的。v1 沒有 AI，兩欄合一；v2 的 AI 產出寫進 `ai_visual_desc`，不覆蓋 `description`。 |
 | **新增** | `at_sec` | 取代 `start_sec`。 |
 | **新增** | `frame_index` | 去重的關鍵，見下。 |
 | **新增** | `source` | 區分 storyboard 與手動補圖，影響縮圖尺寸與「換一格」是否可用。 |
 | **新增** | `place` | 使用者指定為獨立欄位，不再是 `kind='place'` 的標籤。`tag.kind` 因此移除 `'place'` 選項。 |
-| **保留但 v1 不寫入** | `transcript` / `visual_desc` / `ai_raw` | 第四步上線時直接填，不需要資料庫遷移。 |
+| **保留但 v1 不寫入** | `ai_transcript` / `ai_visual_desc` / `ai_raw` | AI 輔助欄位，一律 `ai_` 前綴。第四步上線時直接填，不需要資料庫遷移。 |
 
 ### `event_date` 的預設值鏈
 
@@ -415,7 +442,7 @@ flowchart TD
 
 | 決策 | 選擇 | 理由 |
 |---|---|---|
-| 層級 | **L3（320×180/格）** | 手機上每格顯示寬度約 96px，清晰度綽綽有餘。L2 只有 160×90，格子縮到約 58px 時難以辨識畫面內容，而「看得清楚才選得準」正是這一步的全部價值。 |
+| 層級 | **L3（320×180/格）**；該影片沒有 L3 時**自動降到最高可用層級（L2 → L1）**，工具列旁提示「這支影片只有較低畫質的縮圖」 | 手機上每格顯示寬度約 96px，清晰度綽綽有餘。L2 只有 160×90，格子縮到約 58px 時難以辨識畫面內容，而「看得清楚才選得準」正是這一步的全部價值。降級邏輯 `pickLevel()` 已實作於 `packages/storyboard`（找不到偏好層級就退而求其次）。 |
 | 每列張數 | **3 張** | 與 L3 的清晰度相稱。一屏約 9 張，148 張約需捲 4～5 屏。 |
 
 > **曾評估並否決：L2、每列 5 張。**
@@ -428,7 +455,7 @@ flowchart TD
 直接用 CSS `background-image` + `background-position` 引用 `i.ytimg.com` 的 sheet，**不經過代理**。
 依據第二節第 4 點：sprite 無 CORS 只擋讀取像素，不擋顯示。因此開頁成本等同載入約 17 張圖片，且瀏覽器原生就會依序載入、依序顯示。
 
-定位公式（`src/lib/storyboard.ts` 已實作）：
+定位公式（`packages/storyboard` 已實作，即現在的 `src/lib/storyboard.ts`）：
 
 ```
 frameIndex  = round(t / (intervalMs / 1000))     ← 取最近的一格
@@ -457,7 +484,8 @@ row = floor(posInSheet / cols),  col = posInSheet % cols
 **【過濾相似】** —— 從**已勾選**的縮圖中，找出畫面幾乎相同的，只留每組的第一張。
 
 - 在**瀏覽器端**進行。sheet 經 `GET /api/sheet?u=…` 代理後變同源，canvas 即可讀取像素（見第二節第 4 點）。第二步本來就要為「存單格」下載這些 sheet，因此幾乎不增加額外成本。
-- 演算法：每格縮到 9×8 灰階，算 **dHash**（相鄰像素比較，得 64-bit 指紋），**漢明距離 ≤ 5** 視為相似。依時間順序掃描，每組保留最早的一張。
+- 演算法：每格縮到 9×8 灰階，算 **dHash**（相鄰像素比較，得 64-bit 指紋），漢明距離小於門檻視為相似。依時間順序掃描，每組保留最早的一張。
+- **過濾強度分三檔：高／中／低**（預設中）。按鈕旁的小選單切換，切換後立即以新門檻對原始勾選重算（不是在已過濾的結果上疊加）。強度高＝門檻寬＝更容易判定相似、砍得更多。暫定漢明距離門檻：高 ≤ 10、中 ≤ 6、低 ≤ 3，待實測調校（見第十六節）。因為比對在瀏覽器端且指紋已算好，切換強度是毫秒級。
 - 只比對已勾選的縮圖，不比對全部 148 張 —— 使用者已經表達過意圖的才需要降噪。
 - **結果直接套用**：相似的立即取消勾選，該格變半透明並打叉，**仍留在原位不消失**。頂部出現一條提示：「已過濾掉 6 張相似的　[復原]」。
 - 可單獨點回任何一張被過濾的，也可按【復原】整批退回。
@@ -574,7 +602,7 @@ flowchart LR
 
 ### 第四步：AI 補充（v2）
 
-v1 不實作，但第三步的【完成】按鈕在 v2 會變成【下一步】，資料表欄位已預留（`transcript` / `visual_desc` / `ai_raw`）。規劃見第十七節。
+v1 不實作，但第三步的【完成】按鈕在 v2 會變成【下一步】，資料表欄位已預留（`ai_transcript` / `ai_visual_desc` / `ai_raw`）。規劃見第十七節。
 
 ### 草稿：中途離開
 
@@ -615,6 +643,41 @@ v1 不實作，但第三步的【完成】按鈕在 v2 會變成【下一步】�
 
 使用者不需要知道「宜蘭」是欄位而「露營」是標籤 —— 選了就查。實作上輪播資料來自 `GET /api/facets`，一次回傳兩種 facet，前端合併後依 count 排序。查詢時地點條件走 `shot.place = ?`，標籤條件走 `shot_tag`。
 
+### 點縮圖的行為：全屏檢視器（Lightbox）
+
+首頁與查詢結果的縮圖，點一下**不再直接跳詳情頁**，改為開啟全屏檢視器：
+
+```
+┌───────────────────────────┐
+│ ✕                      ⋯  │
+│                           │
+│      ◀  [大圖]  ▶         │  ← 仍是 L3 320×180 原圖放大
+│                           │     左右滑動 = 上一張／下一張
+│                           │     （範圍 = 目前所在的清單）
+├───────────────────────────┤
+│ 小橘鑽進帳篷               │  ← 描述
+│ 📍宜蘭 ⌗露營 ⌗搭帳篷      │  ← 地點與標籤
+│ 2025-07-12 ·《宜蘭兩天一夜》│  ← 日期與影片
+├───────────────────────────┤
+│ [▶ 跳到影片時間] [分享]    │
+│ [✎ 編輯]        [🗑 刪除] │
+└───────────────────────────┘
+```
+
+| 元素 | 行為 |
+|---|---|
+| 大圖 | R2 的單格 webp 放大置中（`object-fit: contain`）。全屏放大約 3 倍會偏軟，這是儲存 320×180 的天生限制，可接受。 |
+| 左右滑動 | 上一張／下一張。範圍是**目前所在的清單**：從首頁進來＝該月份分組，從查詢結果進來＝該次結果。 |
+| **【▶ 跳到影片時間】** | 導向 `/v/{videoId}?t={at_sec}`，詳情頁播放器從該秒開始播。 |
+| **【分享】** | 以 **Web Share API**（`navigator.share`）叫出系統分享面板，內容為 `https://youtu.be/{videoId}?t={at_sec}`；不支援的環境退回「複製連結」＋ toast 提示。分享的是 YouTube 原片連結（帶秒數），任何人都能開。 |
+| **【✎ 編輯】** | bottom sheet 就地編輯描述／標籤／地點／時間，與詳情頁的就地編輯同一個元件。 |
+| **【🗑 刪除】** | 確認後刪除這張 shot，檢視器自動滑到下一張。 |
+
+> 決策記錄：先前版本是「點縮圖 → 詳情頁跳秒播放」。改為 lightbox 的理由 —— 這是圖庫，
+> 使用者點縮圖的第一意圖是「看這張圖」，不是「看影片」；相簿式的全屏＋左右滑是手機上
+> 最熟悉的模式，「跳去影片」降為明確的第二步動作。分享採 Web Share API 而非單純複製，
+> 因為在手機上「分享到某個 App」才是真實動線，複製只是它的降級。
+
 ### 詳情 `/v/[videoId]`
 
 變動最多的一頁：
@@ -627,8 +690,33 @@ v1 不實作，但第三步的【完成】按鈕在 v2 會變成【下一步】�
 | **新增** | **點任一張可就地編輯圖資**（描述／標籤／地點／時間），bottom sheet 由下滑出，播放器留在上方繼續播 |
 | **新增** | **【繼續取這支的圖】** —— 直接跳進精靈第二步，已收藏的格子標示出來 |
 | **新增** | 刪除單張 shot |
+| **新增** | 影片層級的批次編輯與刪除（見下） |
 
 「就地編輯」是必要的：取圖是批次動作，事後一定會想修某一張，不能只有精靈裡改得到。
+
+### 影片層級的管理（與取圖功能呼應）
+
+取圖精靈負責「收進來」，詳情頁負責「收進來之後的一切」。詳情頁右上角 `⋯` 選單提供三個影片層級動作：
+
+```mermaid
+flowchart LR
+    H["首頁／查詢<br/>點縮圖"] --> LB["Lightbox"] -->|跳到影片時間| V["詳情 /v/[videoId]"]
+    V -->|⋯ 選單| A["繼續取這支的圖<br/>→ 精靈第二步"]
+    V -->|⋯ 選單| B["批次編輯圖資<br/>→ 精靈第三步同一介面"]
+    V -->|⋯ 選單| C["刪除整支收藏"]
+```
+
+**【批次編輯圖資】** —— 把這支影片的**所有已收藏 shot** 載入**精靈第三步的同一個介面**（網格＋勾選＋抽屜＋套用語意完全相同），改完按【完成】回詳情頁。這就是「事後想幫整批補標籤／改地點」的答案 —— 不另做一套批次編輯 UI，直接複用第三步。
+
+**【刪除整支收藏】** —— 確認對話框明示範圍：「將刪除這支影片的 12 張收藏（含 2 張手動補圖），YouTube 原片不受影響。」確認後：
+
+1. 刪除該影片的所有 `shot` 與 `shot_tag`
+2. 同步遞減 `facet_month_agg`
+3. 刪除 R2 上該影片的所有縮圖物件（`{videoId}/` 前綴一次列舉刪除）
+4. 刪除 `video` 那一列
+5. 導回首頁，toast「已刪除《宜蘭兩天一夜》的 12 張收藏」
+
+單張 shot 的刪除（lightbox 或詳情頁）做同樣的 1–3 步但只針對那一張；該影片最後一張被刪掉時，順帶清掉 `video` 列。**所有刪除都是硬刪除，不做回收桶** —— 資料可從 YouTube 重新取圖恢復，成本低，不值得為它養一套軟刪除狀態。
 
 ---
 
@@ -671,11 +759,12 @@ v1 不實作，但第三步的【完成】按鈕在 v2 會變成【下一步】�
 
 ```
 第二步按【下一步】時，對每一張勾選的 storyboard 縮圖：
-1. 前端已有 sb_spec（第一步取得），算出 frameIndex 與 sheetIndex
-2. 若 R2 已有 {videoId}/L3/{frameIndex}.webp → 跳過
+1. 前端已有 sb_spec（第一步取得），以 pickLevel() 取最高可用層級（L3 → L2 → L1），
+   算出 frameIndex 與 sheetIndex
+2. 若 R2 已有 {videoId}/L{level}/{frameIndex}.webp → 跳過
 3. 透過 GET /api/sheet?u={sheetUrl} 代理取得該張 sheet
 4. canvas 裁出該格，toBlob('image/webp', 0.75)
-5. PUT /api/thumbs → R2，key = {videoId}/L3/{frameIndex}.webp
+5. PUT /api/thumbs → R2，key = {videoId}/L{level}/{frameIndex}.webp
 6. sheet 本身不留存；解碼參數存進 video.sb_spec（供日後重裁）
 7. 讀取時 <img loading="lazy">，不需要 sb_spec
 ```
@@ -686,7 +775,7 @@ v1 不實作，但第三步的【完成】按鈕在 v2 會變成【下一步】�
 
 ⚠️ 代價：裁切依賴前端，**必須在開著的分頁裡完成**。第三步進場時顯示「處理縮圖 12/18」進度，通常在一兩秒內跑完。
 
-`key` 用 `{videoId}/L3/{frameIndex}` 而非 shot id，**同一支影片被不同批次取到同一格時天然去重**。
+`key` 用 `{videoId}/L{level}/{frameIndex}` 而非 shot id，**同一支影片被不同批次取到同一格時天然去重**。同一支影片只會用一個層級（該影片的最高可用層級），不會混用。
 
 ### ⚠️ 這是非官方端點
 
@@ -699,7 +788,21 @@ storyboard 端點**沒有任何官方文件或相容性承諾**。YouTube 前端
 - **功能降級，絕不當機**
 - **已存入 R2 的單格縮圖完全不受影響**，首頁與查詢照常運作；失效只影響「之後新加入的影片」
 
-### 健康偵測與告警
+### 健康偵測與告警（營運面）
+
+> **定位聲明**：這整段是**營運管理功能，不屬於前端產品**。目前沒有後台管理介面的規劃，
+> 也**不對前端做任何告警通知** —— 解析器失效時，使用者操作取圖自然會看到
+> 「無法取得逐段縮圖，可手動補圖」的功能性訊息，那就是前端唯一需要的表達。
+> 本段的目的只有一個：**讓管理員（作者本人）不必等到自己撞上，就知道解析器壞了。**
+
+#### 0. 部署形態：獨立的 probe 子專案
+
+金絲雀探測獨立成 Turborepo 的 `apps/probe` —— 一個只有 Cron Trigger 的小 Worker，
+與主應用分開部署，綁同一個 D1 與 R2：
+
+- 主應用的部署與 probe 互不牽動；改探測邏輯不用重佈主站
+- `packages/storyboard` 的解析程式碼由兩端共用 —— **probe 測的就是主站實際在跑的那份程式碼**
+- probe 順帶承擔每日的孤兒縮圖清理（見第五節草稿一節）
 
 #### 1. 區分三種失敗（避免誤報）
 
@@ -714,27 +817,31 @@ storyboard 端點**沒有任何官方文件或相容性承諾**。YouTube 前端
 
 #### 2. 金絲雀探測
 
-以 **Cloudflare Cron Triggers**（免費層支援）每日對一支**已知必定有 storyboard 的公開影片**執行探測。金絲雀失敗 → 100% 是解析器失效，與個別影片無關。這讓告警幾乎不可能誤報。
+`apps/probe` 以 **Cloudflare Cron Triggers**（免費層支援）每日對一支**已知必定有 storyboard 的公開影片**執行探測，結果寫入 `sb_probe`。金絲雀失敗 → 100% 是解析器失效，與個別影片無關。這讓判定幾乎不可能誤報。
 
-#### 3. 告警
+#### 3. 告警管道（依成本與可行性評估）
 
-| 情況 | 行為 |
-|---|---|
-| 金絲雀失敗 1 次 | 記錄，不告警 |
-| 金絲雀**連續失敗 2 次** | 🚨 告警 |
-| 真實影片近 10 次有 ≥ 8 次 `parse_failed` | 🚨 告警（提早發現） |
+觸發條件：金絲雀**連續失敗 2 次**（單次失敗只記錄，可能是暫時性網路問題）；或真實取圖近 10 次有 ≥ 8 次 `parse_failed`（提早發現）。
 
-呈現：頁首常駐紅色橫幅（可手動關閉）＋ 設定頁的健康狀態與【立即重新探測】。不做 email／推播 —— 這是功能降級而非服務中斷。
+觸發後依序做三件事：
+
+| 順位 | 管道 | 評估 |
+|---|---|---|
+| 1 | **寫入 D1**（`sb_probe` 本身就是紀錄） | ✅ v1 必做。零成本，事後可查完整歷史。管理員以 `wrangler d1 execute` 或 Cloudflare Dashboard 查詢。 |
+| 2 | **Workers Logs（observability）結構化紀錄** | ✅ v1 必做。probe 以 `console.error(JSON.stringify({alert:'sb_parser_down', …}))` 輸出，在 Dashboard 的 Workers Logs 介面可直接篩選；免費層含 200k events/日，綽綽有餘。 |
+| 3 | **Cloudflare 發信通知管理員** | ⚠️ **暫緩**。Workers 的 `send_email` binding 可免費發信，但前提是**自訂網域＋啟用 Email Routing** —— 本專案 v1 用 `*.workers.dev` 免費子網域，不符合前提。日後若購買網域即可補上（probe 加一個 binding、幾行程式）；在那之前，管道 1＋2 已足夠，因為這是功能降級而非服務中斷，發現延遲一兩天可接受。 |
+
+不做的：前端橫幅（前端不需要知道營運狀態）、第三方 webhook（不為此引入外部服務）、推播。
 
 #### 4. 恢復
 
-金絲雀探測成功即自動解除告警。降級期間加入的影片，可在設定頁按【重新抓取缺少的縮圖】批次補抓。
+金絲雀探測成功即視為恢復（`sb_probe` 最新一筆 `ok`）。降級期間加入的影片，可在設定頁按【重新抓取缺少的縮圖】批次補抓 —— 這一顆是**使用者面的修復功能**，與營運告警無關，因此留在設定頁。
 
 ### 資產尺寸與快取
 
 | 資產 | 尺寸 | 快取 |
 |---|---|---|
-| storyboard 單格 | L3 320×180，WebP q75，**約 5.9 KB/格** | key = `{videoId}/L3/{frameIndex}.webp`，`Cache-Control: public, max-age=31536000, immutable` |
+| storyboard 單格 | L3 320×180（降級時 L2 160×90），WebP q75，**約 5.9 KB/格** | key = `{videoId}/L{level}/{frameIndex}.webp`，`Cache-Control: public, max-age=31536000, immutable` |
 | 手動補圖 | 480×270 webp，約 20 KB | key = `{videoId}/manual/{uuid}.webp`，同上 |
 
 500 張 shot 的總資產量約 3 MB，遠低於 R2 免費額度 10 GB。
@@ -783,7 +890,7 @@ storyboard 端點**沒有任何官方文件或相容性承諾**。YouTube 前端
 
 ### 播放
 
-點縮圖 → 詳情頁 → iframe 跳到 `at_sec` 開始播放：
+點縮圖 → **Lightbox**（見第六節）→【跳到影片時間】→ 詳情頁 iframe 跳到 `at_sec` 開始播放：
 
 ```
 https://www.youtube.com/embed/{id}?start={at_sec}&autoplay=1&playsinline=1
@@ -809,15 +916,33 @@ https://www.youtube.com/embed/{id}?start={at_sec}&autoplay=1&playsinline=1
 
 ## 九、認證與多租戶
 
-**Cloudflare Access（Zero Trust）＋ Google 作為 IdP。** 與舊規格完全相同，未變動。
+### 這一段在做什麼
 
-- 由 Cloudflare 執行完整的 Google OAuth 流程，**應用程式端零行程式碼**
-- 未通過者在請求抵達 Worker 之前即被攔截
-- 通過後每個請求帶 `Cf-Access-Jwt-Assertion` header，其中的 email 直接作為 `owner_id`
-- 免費層上限 50 人
-- `*.workers.dev` 子網域可直接掛 Access policy，**不需要購買自訂網域**
+「用 Google 帳號登入」其實是兩件事的合稱：**①讓使用者證明自己是誰**（跳 Google 登入頁、拿回身分），**②讓伺服器擋掉沒登入的請求**（每一條 API 都要驗證來者何人）。多數方案要為 ② 寫驗證程式碼；本專案選的 Cloudflare Access 把 ①② 都搬到 Cloudflare 的邊緣網路做掉。
 
-`src/lib/server/auth.ts` 負責驗證 JWT 並取出 email；所有 repo 方法一律要求 `owner_id` 參數。
+**Cloudflare Access（Zero Trust）＋ Google 作為 IdP** 的運作方式：
+
+1. 在 Cloudflare 後台對整個站點掛一條規則：「只有名單上的 Google 帳號能進」
+2. 訪客第一次開站，Cloudflare **在請求碰到我們的 Worker 之前**先把人導去 Google 登入
+3. 登入通過後，之後每個請求都自動帶 `Cf-Access-Jwt-Assertion` header
+4. 我們的程式只做一件事：從該 header 取出 email 當 `owner_id`（`apps/web/src/lib/server/auth.ts`，約十行）
+
+選它的理由：**應用程式端幾乎零行認證程式碼**；沒登入的人連靜態資源都拿不到（攔截發生在邊緣，不消耗 Worker 額度）；免費層 50 人；`*.workers.dev` 子網域可直接掛 policy，不需買網域。
+
+### 與「純前端 Google 登入」的差異
+
+「純前端 Google 登入」指在頁面裡嵌 Google Identity Services（GIS），使用者點按鈕登入、前端拿到 ID token。差異的關鍵在 **②伺服器驗證**：
+
+| | Cloudflare Access | 純前端 GIS 登入（不做後端驗證） | GIS ＋ 後端驗證 token |
+|---|---|---|---|
+| 前端登入體驗 | 整站攔截，Cloudflare 的登入頁 | 站內按鈕，體驗較原生 | 站內按鈕 |
+| **API 是否受保護** | ✅ 到不了 Worker | ❌ **完全沒有** —— 任何人打開 devtools 直接 `fetch('/api/shots')` 就能讀寫資料庫，登入按鈕只是裝飾 | ✅ 每條 API 驗一次 |
+| 應用程式端程式碼 | ~10 行（讀 header） | 0 行（但等於不設防） | 中等（驗 JWT 簽章、快取 Google 公鑰、處理過期） |
+| 綁定 Cloudflare | ✅ 是 | 否 | 否 |
+
+結論：「不經過後端」的純前端登入對**存有伺服器資料**的系統不成立 —— 資料在 D1/R2，防線必須在伺服器側，否則形同裸奔。真正的比較是 Access vs「GIS＋後端驗證」，兩者都安全；v1 選 Access 是因為程式碼最少、且攔截在邊緣。**代價是綁 Cloudflare** —— v3 自架版沒有 Access 可用，屆時換成「GIS＋後端驗證」，`owner_id` 一樣是 email，資料層完全不用動（見第十八節）。
+
+所有 repo 方法一律要求 `owner_id` 參數，這條規則與認證方案無關，永遠成立。
 
 ---
 
@@ -828,7 +953,7 @@ https://www.youtube.com/embed/{id}?start={at_sec}&autoplay=1&playsinline=1
 | 帳號 | Google 頭像、名稱、email、登出 | 不變 |
 | **AI 分析區間** | 往前 `10` 秒 / 往後 `20` 秒（兩個獨立數字） | **新增**。v1 顯示但不生效，標示「第四步上線後生效」 |
 | 標籤管理 | 合併、改名、編輯 aliases | 不變 |
-| 縮圖服務 | 健康狀態、【立即重新探測】、【重新抓取缺少的縮圖】 | 不變 |
+| 縮圖服務 | 【重新抓取缺少的縮圖】（解析器降級期間入庫的影片，恢復後批次補抓） | **縮減**：健康狀態顯示與【立即重新探測】移除 —— 金絲雀屬營運面（見第七節），前端不呈現 |
 
 **移除**（對應功能已不存在）：標記前秒數、標記後秒數、標記時自動暫停、代辦自動處理延遲、Gemini 每日配額用量。
 
@@ -842,18 +967,19 @@ https://www.youtube.com/embed/{id}?start={at_sec}&autoplay=1&playsinline=1
 
 | 階段 | 內容 | 完成時看得到什麼 |
 |---|---|---|
-| 1 | `clip` → `shot` 改名、repo 介面調整、首頁／查詢／詳情改接新模型（假資料） | 現有三頁在新資料模型上照常運作 |
-| 2 | 精靈第一、二步：輸入網址、縮圖牆、點選、全部選取、只看已選 | 能貼網址、看到整支影片的縮圖、勾選 |
+| 1 | Turborepo 骨架（apps/web + packages/storyboard・schema）、`clip` → `shot` 改名、repo 介面調整、首頁／查詢／詳情改接新模型（假資料） | 現有三頁在 monorepo 與新資料模型上照常運作 |
+| 2 | 精靈第一、二步：輸入網址、縮圖牆（含 L2 降級）、點選、全部選取、只看已選 | 能貼網址、看到整支影片的縮圖、勾選 |
 | 3 | 伺服器端縮圖：`/api/video`、`/api/sheet` 代理、前端裁切、`/api/thumbs` 存 R2 | 勾選的圖真的存下來了 |
-| 4 | 過濾相似（瀏覽器端 dHash） | 一鍵降噪 |
+| 4 | 過濾相似（瀏覽器端 dHash、強度三檔） | 一鍵降噪 |
 | 5 | 手動補圖（相簿選圖、縮圖、上傳、時間點帶入） | 補得了 YouTube 沒給的畫面 |
 | 6 | 精靈第三步：勾選子集、抽屜、套用語意、快捷列 | 一趟流程能走完並入庫 |
 | 7 | 草稿續做、完成後導回首頁並捲到該月份 | 中斷不再白費 |
-| 8 | 詳情頁改造：真播放器、就地編輯、繼續取圖、刪除 | 事後修得動 |
-| 9 | 查詢頁把地點併入標籤輪播、`/api/facets` | 地點查得到 |
-| 10 | 設定頁增刪 | 設定與功能一致 |
-| 11 | D1 schema + migrations + `d1.ts` + R2 + Cloudflare Access | 上線 |
-| 12 | storyboard 健康偵測：失敗分類、Cron 金絲雀、告警橫幅 | 解析器壞掉時會知道 |
+| 8 | Lightbox：全屏檢視、左右滑動、跳影片、分享、編輯、刪除 | 圖庫的核心瀏覽體驗成形 |
+| 9 | 詳情頁改造：真播放器、就地編輯、繼續取圖、批次編輯圖資、刪除整支收藏 | 事後修得動、刪得掉 |
+| 10 | 查詢頁把地點併入標籤輪播、`/api/facets` | 地點查得到 |
+| 11 | 設定頁增刪 | 設定與功能一致 |
+| 12 | D1 schema + migrations + `d1.ts` + R2 + Cloudflare Access | 上線 |
+| 13 | `apps/probe`：失敗分類、Cron 金絲雀、D1＋Logs 告警、孤兒清理 | 解析器壞掉時管理員會知道 |
 
 ---
 
@@ -877,9 +1003,14 @@ Playwright，預設 viewport 使用 `devices['Pixel 7']`，跑在 mock 資料上
 12. 中途離開 → 再按【取圖】出現「要繼續嗎」，選【繼續】回到原步驟與原選擇
 13. 影片沒有 storyboard → 空縮圖牆 + 只開放手動補圖，**不當機**
 14. 已收藏過的格子 → 顯示鎖定、點擊無效
-15. 健康偵測**不誤報** —— 模擬 `no_storyboard` 連續發生 → **不可告警**
-16. 健康偵測**會告警** —— 模擬金絲雀連續 2 次 `parse_failed` → 橫幅出現
+15. 健康偵測**不誤報** —— 模擬 `no_storyboard` 連續發生 → **不寫入告警紀錄**
+16. 健康偵測**會告警** —— 模擬金絲雀連續 2 次 `parse_failed` → D1 有告警紀錄、Logs 有結構化輸出（probe 單元測試，非 E2E）
 17. 解析器失效時，已存 R2 的縮圖仍正常顯示
+18. 過濾強度高／中／低 → 過濾張數依序遞減；切換強度是對原始勾選重算
+19. 影片只有 L2 沒有 L3 → 縮圖牆正常顯示並提示畫質較低，存檔 key 為 `L2`
+20. Lightbox：左右滑動換張、【跳到影片時間】導向詳情頁且秒數正確、【刪除】後自動跳下一張
+21. 【批次編輯圖資】→ 進第三步介面，改標籤後詳情頁與查詢結果同步更新
+22. 【刪除整支收藏】→ 首頁不再出現該影片的任何縮圖，`facet_month_agg` 計數正確遞減
 
 **視覺回歸（screenshot diff）v1 不做。** UI 仍在快速變動的階段導入，會導致測試持續失敗、時間耗費在核可 baseline 而非開發。
 
@@ -916,18 +1047,19 @@ Playwright，預設 viewport 使用 `devices['Pixel 7']`，跑在 mock 資料上
 
 | 模組 | 技術 | 說明 |
 |---|---|---|
-| 前端 + API | SvelteKit（`+server.ts` 即 API） | 單一部署目標，同源無 CORS |
+| 前端 + API | SvelteKit（`+server.ts` 即 API） | SSR ＋ 客戶端路由（見第三節「渲染模式」）；同源無 CORS |
 | 部署 | Cloudflare Workers（static assets） | Wrangler |
+| Monorepo | **Turborepo + pnpm workspace** | apps/web・apps/probe 共用 packages/storyboard・schema |
 | 套件管理 | pnpm | 專案已指定 |
 | 資料庫 | Cloudflare D1 + FTS5（**trigram** tokenizer） | 中文檢索品質考量 |
 | ORM | Drizzle（D1 dialect） | schema 與 migrations |
 | 物件儲存 | Cloudflare R2 | 單格 webp + 手動補圖；無 egress 費 |
-| 認證 | Cloudflare Access + Google IdP | 零程式碼，JWT email 即 `owner_id` |
+| 認證 | Cloudflare Access + Google IdP | 攔截在邊緣、應用端僅讀 header；選型理由與純前端登入的比較見第九節；v3 換 GIS＋後端驗證 |
 | AI | Gemini Flash（`gemini-flash-latest`） | v1 僅查詢解析；v2 追加影片分析 |
 | 影片 metadata | YouTube Data API v3（API key） | 不需 OAuth |
 | 縮圖來源 | YouTube storyboard **L3**（⚠️ 非官方）+ 手動補圖 | 必須有降級路徑與健康偵測 |
 | 影像處理 | **瀏覽器 canvas**（裁切、縮圖、dHash） | Worker 不引入影像相依 |
-| 健康探測排程 | Cloudflare Cron Triggers | 每日金絲雀 + 孤兒清理 |
+| 健康探測排程 | 獨立 Worker `apps/probe`（Cron Triggers） | 每日金絲雀 + 孤兒清理；告警走 D1 + Workers Logs（見第七節） |
 | 播放 | YouTube iframe embed（`start`） | 跳秒回放 |
 | PWA | Web App Manifest | Android；**v1 不含 Share Target** |
 | 測試 | Playwright（`devices['Pixel 7']`） | E2E；視覺回歸列 v2 |
@@ -945,7 +1077,8 @@ Playwright，預設 viewport 使用 `devices['Pixel 7']`，跑在 mock 資料上
 - 任意子集批次定義圖資（時間／地點／標籤／描述）
 - storyboard L3 單格縮圖存 R2（含降級路徑與健康偵測告警）
 - 首頁年月縮圖牆、標籤／文字兩種查詢、地點併入輪播
-- 詳情頁播放與就地編輯
+- Lightbox 全屏檢視（左右滑動、跳影片、Web Share 分享、編輯、刪除）
+- 詳情頁播放與就地編輯、影片層級的批次編輯與刪除
 - 本機草稿續做
 - Cloudflare Access（Google 登入）
 - Playwright E2E
@@ -965,6 +1098,7 @@ Playwright，預設 viewport 使用 `devices['Pixel 7']`，跑在 mock 資料上
 | 向量搜尋（Vectorize） | v2 | FTS5 + trigram 先驗證品質是否足夠 |
 | 本機 pipeline（2026-07-30 spec） | v2 | 見第〇節 |
 | 使用者自帶 Gemini 金鑰 | v2 | 已驗證可行（舊規格第十八節），但 v1 幾乎不用 Gemini，動機不足 |
+| **脫離 Cloudflare 的自架版本** | **v3** | 使用者指定的長期選項。可行性評估與 v1 需預留的邊界見第十八節 |
 | Google Drive + DuckDB 取代 D1/R2 | ❌ 不做 | 已評估並排除，見舊規格第十七節 |
 
 ---
@@ -972,11 +1106,12 @@ Playwright，預設 viewport 使用 `devices['Pixel 7']`，跑在 mock 資料上
 ## 十六、待實作時確認的開放項目
 
 - **`recordingDetails` 的可及性** —— 需確認以 API key（非 OAuth）呼叫 `videos.list?part=recordingDetails` 時，對他人的公開／unlisted 影片是否回傳該欄位。若不可得，`event_date` 的預設值鏈直接退到 `published_at`，UI 行為不變。
-- **dHash 的漢明距離閾值** —— 暫定 ≤ 5（64-bit 指紋）。需以實際影片調校：太鬆會砍掉不同場景，太緊則濾不掉連續的靜止畫面。應在設定頁保留一個「過濾強度」滑桿的位置，但 v1 先寫死。
+- **dHash 三檔強度的門檻值** —— 暫定高 ≤ 10、中 ≤ 6、低 ≤ 3（64-bit 指紋）。需以實際影片調校：太鬆會砍掉不同場景，太緊則濾不掉連續的靜止畫面。三檔的 UI 已定（第五節），只有數字待調。
 - **storyboard spec 的正則寫法與容錯** —— `playerStoryboardSpecRenderer` 的擷取需能容忍 YouTube 前端改版；抓不到時的降級路徑必須有測試覆蓋。
 - **金絲雀影片的選擇** —— 需挑一支「長期存在、不會被刪、確定有 storyboard」的公開影片。候選條件：官方頻道、發布已久、長度中等。選定後寫入設定常數。
 - **第二步的 sheet 載入策略** —— 148 張縮圖分佈在約 17 張 sheet 上。是一次全載，還是依捲動位置漸進載入？取決於實測的首屏時間，實作時以真機量測決定。
 - **查詢解析的 prompt** —— 如何讓 Gemini 穩定區分「這是地點」與「這是標籤」，需要實際迭代。
+- **告警 email 的補齊時機** —— `send_email` binding 需要自訂網域＋Email Routing（見第七節）。若日後購買網域，probe 補一個 binding 即可發信；在此之前以 D1＋Workers Logs 為準。
 
 ---
 
@@ -986,7 +1121,7 @@ Playwright，預設 viewport 使用 `devices['Pixel 7']`，跑在 mock 資料上
 
 ### 定位
 
-第三步之後多一步：從已入庫的 shot 中，**選擇性地**挑幾張送 Gemini 分析，自動補上 `description`、`visual_desc`、`transcript` 與建議標籤。
+第三步之後多一步：從已入庫的 shot 中，**選擇性地**挑幾張送 Gemini 分析，自動補上 `ai_visual_desc`、`ai_transcript` 與建議標籤。
 
 **選擇性是重點** —— 使用者收了 18 張圖，可能只有 5 張值得花 AI 額度。這正是舊規格「情境 C：節省 AI 分析資源」的延續。
 
@@ -1013,7 +1148,7 @@ Playwright，預設 viewport 使用 `devices['Pixel 7']`，跑在 mock 資料上
   "generationConfig": {
     "mediaResolution": "MEDIA_RESOLUTION_LOW",   // 66 vs 258 tokens/幀
     "responseMimeType": "application/json",
-    "responseSchema": { /* summary, transcript, visual_desc, tags[], date_hints[] */ }
+    "responseSchema": { /* summary, transcript, visual_desc, tags[], date_hints[] */ }   // 寫入時對應 ai_transcript / ai_visual_desc
   }
 }
 ```
@@ -1024,7 +1159,51 @@ Playwright，預設 viewport 使用 `devices['Pixel 7']`，跑在 mock 資料上
 
 - **AI 產出永遠可覆寫**：所有 AI 欄位可編輯，原始輸出存 `ai_raw`，每個欄位旁提供「還原成 AI 原版」。
 - **AI 產生的標籤為虛線 chip**（`shot_tag.source = 'ai'`），使用者點擊確認後轉為 `human` 並變實心。使用者永遠一眼看得出哪些尚未經人工確認。
-- **不覆蓋使用者已填的 `description`**：AI 的描述寫進 `visual_desc`，兩者並存。
+- **不覆蓋使用者已填的 `description`**：AI 的描述寫進 `ai_visual_desc`，兩者並存。
 - **UI 絕不假設分析會成功**：失敗（影片轉私人、被刪、配額用盡）時顯示具體原因，該 shot 一樣留在圖庫裡，只是沒有 AI 欄位。
 - **重疊區間複用**：分析前查詢同一 `video_id` 已分析過的區間，重疊度高時提示「與 01:10 那張重疊 90%，直接複用？」
 - **前端驅動的循序分析**：不使用 Queues 或 Durable Objects（會破壞零成本目標）。前端逐筆送出並顯示進度列，明確告知分頁需保持開啟。
+
+---
+
+## 十八、v3 藍圖：脫離 Cloudflare 的自架版本
+
+記錄於此，目的有二：評估可行性，以及**列出 v1 必須守住的邊界**，避免現在的實作把未來的路堵死。**不在 v1、v2 實作範圍內。**
+
+### 先校正「離線」這個詞
+
+本系統的內容本體是 YouTube 影片，**播放、取新圖、抓 metadata 都必須連網**，這一點搬到哪裡都不變。因此 v3 的正確目標不是「離線可用」，而是 **「off-cloud」：資料與服務都在自己手上，不依賴 Cloudflare**。真正能離線的部分只有：瀏覽已存的縮圖與圖資、檢索 —— 這些在自架版天然成立（資料就在本機）。
+
+### 三條路的評估
+
+| | (a) 自架 PC Server ★ | (b) 純本機 App（Tauri/Electron） | (c) 手機端本機（PWA + OPFS） |
+|---|---|---|---|
+| 形態 | 家中 PC 跑一個 Node server，手機經區網／Tailscale 用瀏覽器訪問 | 桌機應用程式，資料在該台電腦 | 全部存在手機瀏覽器裡 |
+| 改動量 | **小**：adapter-node ＋ 換資料層 | 中：要包一層桌面殼 | 大：D1/R2/API 全部改寫成瀏覽器內實作 |
+| 手機可用 | ✅ 同一個 PWA，網址換成區網 IP | ❌ 綁在那台電腦 | ✅ 但僅該支手機 |
+| 多裝置同步 | ✅ 資料在 server，天然同步 | ❌ | ❌ 換手機資料就丟 |
+| 手機優先前提 | 守住 | 違反 | 勉強 |
+| 維運負擔 | PC 要開機；建議搭 Tailscale 免暴露公網 | 低 | 低 |
+| 結論 | **✅ 唯一同時守住「手機優先」與「多裝置」的選項** | ❌ 與產品定位衝突 | ❌ 資料安全性不可接受 |
+
+**結論：使用者的直覺正確 —— 自架 PC Server 是唯一合理的路。**
+
+### (a) 的具體形態與各層對應
+
+| 層 | Cloudflare 版（v1） | 自架版（v3） | 遷移成本 |
+|---|---|---|---|
+| HTTP + SSR | Workers（`adapter-cloudflare`） | Node/Bun（`adapter-node`） | 換 adapter 一行設定 |
+| 資料庫 | D1（SQLite 方言） | **better-sqlite3 本機檔案** —— D1 本來就是 SQLite，Drizzle schema 原樣沿用，FTS5 同樣可用 | 新寫一個 `repo/sqlite.ts`，SQL 幾乎照搬 |
+| 物件儲存 | R2 | 檔案系統目錄（`thumbs/{videoId}/…`） | 縮圖讀寫抽象後只是換實作 |
+| 認證 | Cloudflare Access | GIS ＋ 後端驗證 token；或區網內乾脆免登入（單人） | 見第九節，`owner_id` 不變 |
+| Cron（金絲雀／清理） | Cron Triggers（apps/probe） | 同一支程式改由 node-cron 或系統排程器呼叫 | probe 邏輯共用，只換觸發器 |
+| 資料搬遷 | — | D1 export（本來就是 SQLite dump）→ 本機 sqlite；R2 物件 rclone 拉下來 | 一次性腳本 |
+
+### v1 必須守住的邊界（本規格已內建）
+
+1. **repo 介面**（`repo/{types,mock,d1}.ts`）—— 所有 D1 存取只走這層。v3 加 `sqlite.ts` 即可，UI 零改動。**v1 實作時不得在 repo 之外直接摸 D1。**
+2. **縮圖儲存抽象** —— R2 讀寫收在 `/api/thumbs` 與一個 storage 模組內，不得散落。
+3. **認證只在 `auth.ts` 一個檔案** —— 換認證方案時只動它。
+4. **Turborepo 分包** —— `packages/storyboard` 與 `packages/schema` 與部署目標無關，v3 的 server app 直接引用。
+
+守住這四條，v3 的工作量就是「一個新 adapter ＋ 兩個新實作檔 ＋ 一次資料搬遷」，而不是重寫。
