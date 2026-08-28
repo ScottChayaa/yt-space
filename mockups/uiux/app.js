@@ -18,7 +18,18 @@ const ICONS = {
   record: '<circle cx="12" cy="12" r="6"/>',
   close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
   calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>',
-  chevronDown: '<path d="m6 9 6 6 6-6"/>'
+  chevronDown: '<path d="m6 9 6 6 6-6"/>',
+  chevronRight: '<path d="m9 18 6-6-6-6"/>',
+  plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+  folderPlus: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/><path d="M12 10v6"/><path d="M9 13h6"/>',
+  share: '<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>',
+  trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  edit: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  filter: '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
+  imagePlus: '<path d="M16 5h6"/><path d="M19 2v6"/><path d="M21 11.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7.5"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/><circle cx="9" cy="9" r="2"/>',
+  film: '<rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/>'
 };
 // 標籤分類 icon（保留分類意義，改用 SVG + 顏色編碼）
 const KIND = {
@@ -48,17 +59,14 @@ function renderNav(active) {
   const items = [
     { id: 'home', href: 'home.html', ico: 'home', label: '首頁' },
     { id: 'tags', href: 'tags.html', ico: 'search', label: '查詢' },
-    { id: 'todo', href: 'todo.html', ico: 'inbox', label: '代辦' },
-    { id: 'settings', href: 'settings.html', ico: 'settings', label: '設定' },
-    { id: 'account', href: 'settings.html#account', avatar: 'S', label: '帳號' }
+    { id: 'capture', href: 'capture.html', ico: 'plus', label: '取圖', cls: 'capture' },
+    { id: 'folders', href: 'folders.html', ico: 'folder', label: '分類' },
+    { id: 'account', href: 'account.html', avatar: 'S', label: '帳號' }
   ];
-  const pending = M.CLIPS.filter(c => c.status === 'inbox' || c.status === 'analyzing').length;
   return `<nav class="bottom-nav">${items.map(it => {
-    const badge = it.id === 'todo' && pending > 0
-      ? `<span class="nav-badge">${pending > 99 ? '99+' : pending}</span>` : '';
     const inner = it.avatar ? `<span class="avatar">${it.avatar}</span>` : svg(ICONS[it.ico], 'navico');
-    return `<a href="${it.href}" aria-label="${it.label}" class="${active === it.id ? 'active' : ''}">
-      <span class="nav-ic-wrap">${inner}${badge}</span>
+    return `<a href="${it.href}" aria-label="${it.label}" class="${[it.cls || '', active === it.id ? 'active' : ''].join(' ').trim()}">
+      <span class="nav-ic-wrap">${inner}</span>
     </a>`;
   }).join('')}</nav>`;
 }
@@ -236,3 +244,157 @@ function openMonthPicker(opts = {}) {
 }
 
 window.APP = { svg, ICONS, KIND, kindSvg, tagChip, renderNav, bindPress, setupScrubber, top2Tags, openSheet, closeSheet, openMonthPicker, closeMonthPicker, monthLabel };
+
+/* ═══════════ Shot 版共用元件（2026-08-28）═══════════ */
+
+/* 簡易 toast */
+function toast(text, ms = 2200) {
+  let el = document.getElementById('app-toast');
+  if (!el) { el = document.createElement('div'); el.id = 'app-toast'; el.className = 'wz-toast'; document.body.appendChild(el); }
+  el.innerHTML = `<span>${text}</span>`;
+  el.style.display = 'flex';
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { el.style.display = 'none'; }, ms);
+}
+
+/* 泛用底部 sheet（沿用 .sheet 樣式） */
+function openPanel(html) {
+  let bd = document.getElementById('sheet-backdrop');
+  if (!bd) {
+    bd = document.createElement('div'); bd.id = 'sheet-backdrop'; bd.className = 'sheet-backdrop';
+    const sh = document.createElement('div'); sh.id = 'sheet'; sh.className = 'sheet';
+    document.body.append(bd, sh);
+    bd.addEventListener('click', closeSheet);
+  }
+  const sh = document.getElementById('sheet');
+  sh.innerHTML = `<div class="handle"></div>` + html;
+  requestAnimationFrame(() => { bd.classList.add('show'); sh.classList.add('show'); });
+  return sh;
+}
+
+/* ── shot 就地編輯（描述／地點／標籤／時間）── */
+function openShotSheet(shot, onSave) {
+  const v = M.videoOf(shot);
+  const sh = openPanel(`
+    <div class="srow">
+      <span class="trange">${M.fmtTime(shot.start)} ・ 《${v.title.slice(0, 16)}…》</span>
+      <button class="close" onclick="closeSheet()">${svg(ICONS.close, 'ic')}</button>
+    </div>
+    <div class="field"><label>描述（可留空，之後 AI 補）</label><textarea id="es-desc" rows="2">${shot.summary || ''}</textarea></div>
+    <div class="field"><label>地點</label><input id="es-place" type="text" value="${shot.place || ''}" placeholder="例：宜蘭"></div>
+    <div class="field"><label>標籤（逗號分隔）</label><input id="es-tags" type="text" value="${shot.tags.map(t => t.name).join('、')}"></div>
+    <div class="field"><label>時間（事件發生日）</label><input id="es-date" type="date" value="${shot.eventDate}">
+      <div class="warn-line">⚠ 預設帶入 YT 日期，可能不是實際拍攝日</div></div>
+    <button class="confirm" id="es-save">✓ 儲存</button>
+  `);
+  sh.querySelector('#es-save').onclick = () => {
+    shot.summary = sh.querySelector('#es-desc').value.trim();
+    shot.place = sh.querySelector('#es-place').value.trim();
+    shot.eventDate = sh.querySelector('#es-date').value || shot.eventDate;
+    const names = sh.querySelector('#es-tags').value.split(/[、,，]/).map(x => x.trim()).filter(Boolean);
+    shot.tags = names.map(n => shot.tags.find(t => t.name === n) || { name: n, kind: 'topic', source: 'human' });
+    closeSheet(); toast('已儲存'); onSave?.();
+  };
+}
+
+/* ── 加入分類（資料夾樹勾選）── */
+function openFolderPicker(shot, onChange) {
+  function render() {
+    const rows = [];
+    (function walk(parent, depth) {
+      for (const f of M.folderChildren(parent)) {
+        const on = (M.FOLDER_SHOTS[f.id] || new Set()).has(shot.id);
+        rows.push(`<div class="fp-row ${depth ? 'child' + (depth > 1 ? '2' : '') : ''} ${on ? 'on' : ''}" data-id="${f.id}">
+          ${svg(ICONS.folder, 'ic')}<span class="name">${f.name}</span><span class="box">${on ? '✓' : ''}</span></div>`);
+        walk(f.id, depth + 1);
+      }
+    })(null, 0);
+    const sh = openPanel(`
+      <div class="srow"><span class="trange">加入分類</span>
+        <button class="close" onclick="closeSheet()">${svg(ICONS.close, 'ic')}</button></div>
+      ${rows.join('') || '<div class="empty">還沒有任何資料夾</div>'}
+      <button class="fd-add" id="fp-add" style="margin-top:12px">${svg(ICONS.folderPlus, 'ic')} 新增資料夾</button>
+    `);
+    sh.querySelectorAll('.fp-row').forEach(row => row.onclick = () => {
+      const set = M.FOLDER_SHOTS[row.dataset.id];
+      set.has(shot.id) ? set.delete(shot.id) : set.add(shot.id);
+      render(); onChange?.();
+    });
+    sh.querySelector('#fp-add').onclick = () => {
+      const name = prompt('資料夾名稱？');
+      if (name) { M.addFolder(name.trim(), null); render(); }
+    };
+  }
+  render();
+}
+
+/* ── Lightbox 全屏檢視器 ──
+   list: shot 陣列（左右滑動範圍）；idx: 起點；opts.onChange: 內容變動時通知頁面重繪 */
+function openLightbox(list, idx, opts = {}) {
+  let lb = document.getElementById('lb');
+  if (!lb) { lb = document.createElement('div'); lb.id = 'lb'; lb.className = 'lb'; document.body.appendChild(lb); }
+  let i = idx;
+
+  function close() { lb.classList.remove('show'); opts.onChange?.(); }
+
+  function render() {
+    if (!list.length) return close();
+    i = Math.max(0, Math.min(i, list.length - 1));
+    const s = list[i], v = M.videoOf(s);
+    const placeChip = s.place
+      ? `<span class="chip mini">${kindSvg('place')}<span class="cn">${s.place}</span></span>` : '';
+    lb.innerHTML = `
+      <div class="lb-top">
+        <button id="lb-close">${svg(ICONS.close, 'ic')}</button>
+        <span style="font-size:.8rem;color:rgba(255,255,255,.55)">${i + 1} / ${list.length}</span>
+        <span style="width:32px"></span>
+      </div>
+      <div class="lb-stage" id="lb-stage">
+        <div class="lb-img" style="${M.thumbStyle(s.videoId, s.start)}"></div>
+        ${list.length > 1 ? `<button class="lb-nav prev" id="lb-prev">${svg(ICONS.back, 'ic')}</button>
+        <button class="lb-nav next" id="lb-next">${svg(ICONS.chevronRight, 'ic')}</button>` : ''}
+      </div>
+      <div class="lb-info">
+        <div class="d ${s.summary ? '' : 'dim'}">${s.summary || '（沒有描述，之後可由 AI 補）'}</div>
+        <div class="chips">${placeChip}${s.tags.map(t => tagChip(t)).join('')}</div>
+        <div class="meta">${M.fmtDateLabel(s.eventDate)} ・ ${M.fmtTime(s.start)} ・ 《${v.title.slice(0, 22)}…》</div>
+      </div>
+      <div class="lb-actions">
+        <button class="primary" id="lb-play">${svg(ICONS.play, 'ic')} 影片播放</button>
+        <button id="lb-folder">${svg(ICONS.folderPlus, 'ic')} 加入分類</button>
+        <button id="lb-share">${svg(ICONS.share, 'ic')} 分享</button>
+        <button id="lb-edit">${svg(ICONS.edit, 'ic')} 編輯</button>
+        <button class="danger" id="lb-del">${svg(ICONS.trash, 'ic')} 刪除</button>
+      </div>`;
+    lb.querySelector('#lb-close').onclick = close;
+    lb.querySelector('#lb-prev') && (lb.querySelector('#lb-prev').onclick = () => { i--; render(); });
+    lb.querySelector('#lb-next') && (lb.querySelector('#lb-next').onclick = () => { i++; render(); });
+    lb.querySelector('#lb-play').onclick = () => location.href = `detail.html?v=${s.videoId}&c=${s.id}`;
+    lb.querySelector('#lb-folder').onclick = () => openFolderPicker(s);
+    lb.querySelector('#lb-edit').onclick = () => openShotSheet(s, render);
+    lb.querySelector('#lb-share').onclick = async () => {
+      const url = `https://youtu.be/${M.realId ? M.realId(s.videoId) : s.videoId}?t=${s.start}`;
+      if (navigator.share) { try { await navigator.share({ url }); } catch {} }
+      else { try { await navigator.clipboard.writeText(url); } catch {} toast('已複製連結：' + url); }
+    };
+    lb.querySelector('#lb-del').onclick = () => {
+      if (!confirm('刪除這張收藏？（YouTube 原片不受影響）')) return;
+      M.removeClip(s.id); list.splice(i, 1); toast('已刪除');
+      list.length ? render() : close();
+    };
+    // 左右滑動
+    let sx = null;
+    const stage = lb.querySelector('#lb-stage');
+    stage.onpointerdown = e => { sx = e.clientX; };
+    stage.onpointerup = e => {
+      if (sx == null) return;
+      const dx = e.clientX - sx; sx = null;
+      if (dx > 48 && i > 0) { i--; render(); }
+      else if (dx < -48 && i < list.length - 1) { i++; render(); }
+    };
+  }
+  render();
+  lb.classList.add('show');
+}
+
+Object.assign(window.APP, { toast, openPanel, openShotSheet, openFolderPicker, openLightbox });

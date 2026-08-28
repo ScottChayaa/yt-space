@@ -51,6 +51,7 @@
     document.getElementById('empty').style.display = list.length ? 'none' : 'block';
 
     let lastKey = null, container = null, group = null;
+    const flat = [];   // Lightbox 的左右滑動範圍 = 目前顯示中的清單
     for (const c of list) {
       const key = c.eventDate.slice(0, 7);
       if (key !== lastKey) {
@@ -65,7 +66,8 @@
       const tile = document.createElement('div');
       tile.className = 'tile';
       tile.innerHTML = `<div class="thumb"><div class="sb-frame" style="${M.thumbStyle(c.videoId, c.start)}" role="img" aria-label="${c.summary || '片段縮圖'}"></div></div>`;
-      tile.addEventListener('click', () => location.href = `detail.html?v=${c.videoId}&c=${c.id}`);
+      const idx = flat.length; flat.push(c);
+      tile.addEventListener('click', () => APP.openLightbox(flat, idx, { onChange: render }));
       container.appendChild(tile);
       for (const t of c.tags) if (!group.tagMap.has(t.name)) group.tagMap.set(t.name, t);
     }
@@ -92,6 +94,12 @@
 
   history.scrollRestoration = 'manual';   // 避免瀏覽器自動還原捲動位置蓋掉上面的 scrollTo
   apply(upTo);                            // 還原上次選定的時間（無則本月）
+
+  // 取圖完成後導回：跳到新圖所在月份並顯示「已新增 N 張」
+  const jump = sessionStorage.getItem('ytspace_jump');
+  if (jump) { sessionStorage.removeItem('ytspace_jump'); apply(jump); }
+  const done = sessionStorage.getItem('ytspace_toast');
+  if (done) { sessionStorage.removeItem('ytspace_toast'); APP.toast(done); }
 </script>
 </body>
 </html>

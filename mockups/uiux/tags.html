@@ -137,13 +137,13 @@
     const empty = document.getElementById('empty');
     list.sort((a, b) => b.eventDate.localeCompare(a.eventDate));
     results.innerHTML = '';
-    for (const c of list) {
+    list.forEach((c, i) => {
       const tile = document.createElement('div');
       tile.className = 'tile';
       tile.innerHTML = `<div class="thumb"><div class="sb-frame" style="${M.thumbStyle(c.videoId, c.start)}" role="img" aria-label="${c.summary || '片段縮圖'}"></div></div>`;
-      tile.onclick = () => location.href = `detail.html?v=${c.videoId}&c=${c.id}`;
+      tile.onclick = () => APP.openLightbox(list, i);
       results.appendChild(tile);
-    }
+    });
     document.getElementById('resultBar').textContent = `${desc} · ${list.length} 筆`;
     empty.style.display = list.length ? 'none' : 'block';
     wrap.style.display = '';

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>yt-space · 分類</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app-main">
+  <div class="topbar"><span class="title">分類</span></div>
+  <div class="fd-list" id="list"></div>
+  <button class="fd-add" id="add"></button>
+  <div class="empty" id="empty" style="display:none">還沒有任何資料夾<br>建一個開始收藏吧</div>
+</div>
+
+<div id="nav"></div>
+
+<script src="/shared/storyboard.js"></script>
+<script src="mock-data.js"></script>
+<script src="app.js"></script>
+<script>
+document.getElementById('nav').innerHTML = APP.renderNav('folders');
+document.getElementById('add').innerHTML = APP.svg(APP.ICONS.folderPlus, 'ic') + ' 新增資料夾';
+
+const MAX_DEPTH = 5;
+
+function render() {
+  const list = document.getElementById('list');
+  list.innerHTML = '';
+  let any = false;
+  (function walk(parent, depth) {
+    for (const f of M.folderChildren(parent)) {
+      any = true;
+      const row = document.createElement('div');
+      row.className = 'fd-row' + (depth ? ' child' + (depth > 1 ? '2' : '') : '');
+      row.innerHTML = `${APP.svg(APP.ICONS.folder, 'ic')}
+        <span class="name">${f.name}</span>
+        <span class="cnt">${M.folderCount(f.id)}</span>
+        ${APP.svg(APP.ICONS.chevronRight, 'ic')}`;
+      APP.bindPress(row, {
+        onTap: () => location.href = `folder.html?id=${f.id}`,
+        onHold: () => openFolderMenu(f)
+      });
+      list.appendChild(row);
+      walk(f.id, depth + 1);
+    }
+  })(null, 0);
+  document.getElementById('empty').style.display = any ? 'none' : 'block';
+}
+
+/* 長按資料夾：改名／新增子資料夾／刪除 */
+function openFolderMenu(f) {
+  const depth = M.folderDepth(f.id);
+  const sh = APP.openPanel(`
+    <div class="srow"><span class="trange">${f.name}</span>
+      <button class="close" onclick="closeSheet()">${APP.svg(APP.ICONS.close, 'ic')}</button></div>
+    <button class="act-row" id="fmRen">${APP.svg(APP.ICONS.edit, 'ic')} 改名</button>
+    <button class="act-row" id="fmSub" ${depth >= MAX_DEPTH ? 'disabled style="opacity:.4"' : ''}>
+      ${APP.svg(APP.ICONS.folderPlus, 'ic')} 新增子資料夾${depth >= MAX_DEPTH ? '（已達 5 層上限）' : ''}</button>
+    <button class="act-row danger" id="fmDel">${APP.svg(APP.ICONS.trash, 'ic')} 刪除資料夾</button>`);
+  sh.querySelector('#fmRen').onclick = () => {
+    const name = prompt('新名稱？', f.name);
+    if (name) { f.name = name.trim(); closeSheet(); render(); }
+  };
+  sh.querySelector('#fmSub').onclick = () => {
+    if (depth >= MAX_DEPTH) return;
+    const name = prompt('子資料夾名稱？');
+    if (name) { M.addFolder(name.trim(), f.id); closeSheet(); render(); }
+  };
+  sh.querySelector('#fmDel').onclick = () => {
+    const n = M.folderCount(f.id);
+    if (!confirm(`刪除「${f.name}」？連同子資料夾一併刪除，收藏的 ${n} 張圖本身不會被刪。`)) return;
+    (function del(id) {
+      for (const ch of M.folderChildren(id)) del(ch.id);
+      const i = M.FOLDERS.findIndex(x => x.id === id);
+      if (i >= 0) M.FOLDERS.splice(i, 1);
+      delete M.FOLDER_SHOTS[id];
+    })(f.id);
+    closeSheet(); render();
+    APP.toast('已刪除資料夾（圖片仍在首頁）');
+  };
+}
+
+document.getElementById('add').onclick = () => {
+  const name = prompt('資料夾名稱？');
+  if (name) { M.addFolder(name.trim(), null); render(); }
+};
+
+render();
+</script>
+</body>
+</html>

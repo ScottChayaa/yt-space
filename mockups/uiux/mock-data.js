@@ -160,3 +160,66 @@ function allTags() {
 const KIND_ICON = { person: '👤', pet: '🐾', place: '📍', topic: '#', other: '◆' };
 
 window.MOCK = { CHANNELS, VIDEOS, CLIPS, SB_SPECS, thumbUrl, thumbStyle, fmtTime, fmtDateLabel, fmtMonthLabel, videoOf, channelOf, allTags, KIND_ICON };
+
+// ═══════════ Shot 版新增（2026-08-28）═══════════
+// 地點改為獨立欄位（shot.place）；標籤僅保留 person/pet/topic/other。
+// mockup 的 CLIPS 物件即 shot（start 視為 at_sec），為避免大改既有頁面而沿用命名。
+
+const PLACES = {
+  c01: '加勒比海', c02: '加勒比海無人島', c03: '加勒比海', c04: '加勒比海',
+  c05: '佛羅里達', c06: '柳州', c07: '廣西', c08: '南寧', c09: '博白',
+  c10: '雲南', c11: '青藏高原', c12: '女兒國縣城', c13: '秦嶺'
+};
+for (const c of CLIPS) c.place = PLACES[c.id] || '';
+
+// 分類資料夾（樹狀，深度上限 5；mockup 造 2 層示意）
+const FOLDERS = [
+  { id: 'f1', name: '馬拉松', parent: null },
+  { id: 'f2', name: '旅遊', parent: null },
+  { id: 'f3', name: '加勒比海之旅', parent: 'f2' },
+  { id: 'f4', name: '廣西美食', parent: 'f2' },
+  { id: 'f5', name: '風景精選', parent: null }
+];
+// folderId -> Set(clipId)
+const FOLDER_SHOTS = {
+  f1: new Set(),
+  f2: new Set(),
+  f3: new Set(['c01', 'c02', 'c03', 'c04']),
+  f4: new Set(['c06', 'c07', 'c08']),
+  f5: new Set(['c03', 'c11', 'c13'])
+};
+
+function folderChildren(parentId) {
+  return FOLDERS.filter(f => f.parent === parentId);
+}
+function folderById(id) { return FOLDERS.find(f => f.id === id); }
+// 含子孫層的張數
+function folderCount(id) {
+  let n = (FOLDER_SHOTS[id] || new Set()).size;
+  for (const ch of folderChildren(id)) n += folderCount(ch.id);
+  return n;
+}
+function folderDepth(id) {
+  let d = 1, f = folderById(id);
+  while (f && f.parent) { d++; f = folderById(f.parent); }
+  return d;
+}
+function shotFolders(clipId) {
+  return FOLDERS.filter(f => (FOLDER_SHOTS[f.id] || new Set()).has(clipId));
+}
+function addFolder(name, parent) {
+  const id = 'f' + (FOLDERS.length + 1) + '_' + Date.now().toString(36);
+  FOLDERS.push({ id, name, parent: parent || null });
+  FOLDER_SHOTS[id] = new Set();
+  return id;
+}
+function removeClip(clipId) {
+  const i = CLIPS.findIndex(c => c.id === clipId);
+  if (i >= 0) CLIPS.splice(i, 1);
+  for (const k in FOLDER_SHOTS) FOLDER_SHOTS[k].delete(clipId);
+}
+
+Object.assign(window.MOCK, {
+  FOLDERS, FOLDER_SHOTS, folderChildren, folderById, folderCount,
+  folderDepth, shotFolders, addFolder, removeClip
+});

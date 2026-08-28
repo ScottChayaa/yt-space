@@ -35,11 +35,9 @@
   </div>
 
   <div class="section">
-    <h3>我的標記 <span class="count" id="clipCount"></span></h3>
+    <h3>這支影片的收藏 <span class="count" id="clipCount"></span></h3>
     <div class="clip-grid" id="clipGrid"></div>
   </div>
-
-  <button class="mark-now" id="markNow"></button>
 </div>
 
 <div id="nav"></div>
@@ -53,13 +51,13 @@
   document.getElementById('moreBtn').innerHTML = APP.svg(APP.ICONS.more, 'ic', true);
   document.getElementById('centerPlay').innerHTML = APP.svg(APP.ICONS.play, 'ic', true);
   document.getElementById('playBtn').innerHTML = APP.svg(APP.ICONS.play, 'ic', true);
-  document.getElementById('markNow').innerHTML = APP.svg(APP.ICONS.record, 'ic', true) + ' 標記此刻';
 
   const params = new URLSearchParams(location.search);
   const videoId = params.get('v') || 'Ea8ICLXTDaU';
   const focusClip = params.get('c');
+  const t = params.get('t');
   const video = M.VIDEOS[videoId];
-  const clips = M.CLIPS.filter(c => c.videoId === videoId).sort((a, b) => a.start - b.start);
+  let clips = M.CLIPS.filter(c => c.videoId === videoId).sort((a, b) => a.start - b.start);
 
   document.getElementById('vtitle').textContent = video.title;
   document.getElementById('dur').textContent = M.fmtTime(video.duration);
@@ -75,7 +73,7 @@
       const r = document.createElement('div');
       r.className = 'region' + (c.id === selectedId ? ' sel' : '');
       r.style.left = (c.start / D * 100) + '%';
-      r.style.width = ((c.end - c.start) / D * 100) + '%';
+      r.style.width = (Math.max(c.end - c.start, 8) / D * 100) + '%';   // 單點 shot 也要看得見
       track.appendChild(r);
     }
   }
@@ -92,6 +90,7 @@
   function focus(c) { selectedId = c.id; drawRegions(); seekTo(c.start); renderClips(); }
   seekTo(0);
   if (selectedId) { const c = clips.find(x => x.id === selectedId); if (c) seekTo(c.start); }
+  if (t) seekTo(+t);   // Lightbox【影片播放】帶秒數進來
 
   document.getElementById('playBtn').onclick = document.getElementById('centerPlay').onclick =
     () => alert('（原型）播放器會 seekTo 並播放選定區間 · 使用現有 Player.seekTo/playRange');
@@ -99,8 +98,22 @@
     const r = track.getBoundingClientRect();
     seekTo(Math.round((e.clientX - r.left) / r.width * D));
   };
-  document.getElementById('markNow').onclick =
-    () => alert('（原型）標記此刻 → 建立 [t−20, t+10] clip → 彈出編輯 sheet');
+  // ⋯ 選單：影片層級管理
+  document.getElementById('moreBtn').onclick = () => {
+    const sh = APP.openPanel(`
+      <div class="srow"><span class="trange">影片管理</span>
+        <button class="close" onclick="closeSheet()">${APP.svg(APP.ICONS.close, 'ic')}</button></div>
+      <button class="act-row" id="vmCap">${APP.svg(APP.ICONS.plus, 'ic')} 繼續取這支的圖</button>
+      <button class="act-row" id="vmMeta">${APP.svg(APP.ICONS.edit, 'ic')} 批次編輯圖資</button>
+      <button class="act-row danger" id="vmDel">${APP.svg(APP.ICONS.trash, 'ic')} 刪除整支收藏</button>`);
+    sh.querySelector('#vmCap').onclick = () => location.href = `capture.html?v=${videoId}`;
+    sh.querySelector('#vmMeta').onclick = () => location.href = `capture.html?v=${videoId}&mode=meta`;
+    sh.querySelector('#vmDel').onclick = () => {
+      if (!confirm(`將刪除這支影片的 ${clips.length} 張收藏，YouTube 原片不受影響。確定？`)) return;
+      clips.forEach(c => M.removeClip(c.id));
+      location.href = 'home.html';
+    };
+  };
 
   // 標記縮圖網格：點=跳轉播放、長按=編輯
   const grid = document.getElementById('clipGrid');
@@ -109,8 +122,8 @@
     for (const c of clips) {
       const tile = document.createElement('div');
       tile.className = 'clip-tile' + (c.id === selectedId ? ' playing' : '');
-      tile.innerHTML = `<div class="sb-frame" style="${M.thumbStyle(c.videoId, c.start)}" role="img" aria-label="片段縮圖"></div><span class="badge">${M.fmtTime(c.start)}–${M.fmtTime(c.end)}</span>`;
-      APP.bindPress(tile, { onTap: () => focus(c), onHold: () => APP.openSheet(c) });
+      tile.innerHTML = `<div class="sb-frame" style="${M.thumbStyle(c.videoId, c.start)}" role="img" aria-label="片段縮圖"></div><span class="badge">${M.fmtTime(c.start)}</span>`;
+      APP.bindPress(tile, { onTap: () => focus(c), onHold: () => APP.openShotSheet(c, renderClips) });
       grid.appendChild(tile);
     }
   }
