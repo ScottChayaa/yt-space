@@ -2,7 +2,7 @@
 
 > 從任何 YouTube 影片挑出畫面，成為可依時間瀏覽、依標籤與語意檢索的個人圖庫（手機優先）
 > 建立日期：2026-08-27
-> 狀態：第一輪複審修訂完成（待使用者確認）
+> 狀態：第二輪複審修訂完成（待使用者確認）
 
 ---
 
@@ -192,7 +192,7 @@ YouTube iframe 是跨來源內容，瀏覽器安全模型禁止讀取其像素�
 
 ### 渲染模式：這是 SPA 嗎？
 
-不是純 SPA，是 **SvelteKit 預設的「SSR + 客戶端路由」混合模式**，行為上最接近使用者的直覺是：
+**這不是「前端一個專案、後端一個專案」的前後端分離**，也不是每頁整頁重載的傳統後端渲染 —— 是同一個 SvelteKit 專案同時產出頁面與 API 的一體式（full-stack）架構，模式為 **SSR ＋ 客戶端路由**：
 
 - **第一次開頁**：Worker 做伺服器端渲染（SSR），首屏直接是完整 HTML，手機上首載最快。
 - **之後的所有導覽**：走客戶端路由，不重新整理頁面 —— **體感上就是 SPA**。取圖精靈四步之間的切換全在前端，狀態不落地。
@@ -203,23 +203,28 @@ YouTube iframe 是跨來源內容，瀏覽器安全模型禁止讀取其像素�
 
 **採用 Turborepo。** 誠實說：只有一個 app 時 monorepo 是殺雞用牛刀，但本專案實際有三個回本點 —— ① 金絲雀探測是獨立的 Cron Worker（見第七節），與主應用分開部署；② `storyboard` 解析與 Drizzle schema 需要被 web 與 probe 兩端共用；③ v3 自架版會是第三個 app（見第十八節），屆時直接共用 packages。
 
+**app 命名**：主應用取 `web`、未來的後台取 `admin`（`apps/web`／`apps/admin`）。曾考慮 `web-public`／`web-admin`，不採用 —— `public` 在網站語境容易誤讀成「未登入可看的公開區」，而本站其實整站都要登入；`admin` 一詞本身已經把「另一個是使用者面」講清楚了，前綴反而是噪音。
+
 ```
 yt-space/（pnpm workspace + Turborepo）
 ├── turbo.json
 ├── pnpm-workspace.yaml
 ├── apps/
-│   ├── web/                              # 主應用：SvelteKit PWA + API
+│   ├── web/                              # 主應用：SvelteKit PWA + API（會員面；未來後台＝apps/admin）
 │   │   ├── src/
 │   │   │   ├── routes/
 │   │   │   │   ├── +page.svelte              # 首頁：年月縮圖牆
 │   │   │   │   ├── search/+page.svelte       # 查詢：標籤／文字
 │   │   │   │   ├── capture/+page.svelte      # ★ 取圖精靈（四步驟）
 │   │   │   │   ├── v/[videoId]/+page.svelte  # 詳情：播放 + 影片層級管理
-│   │   │   │   ├── settings/+page.svelte     # 設定
+│   │   │   │   ├── folders/+page.svelte      # 分類：資料夾樹
+│   │   │   │   ├── folders/[id]/+page.svelte # 分類：資料夾內容
+│   │   │   │   ├── account/+page.svelte      # 帳號（含原設定頁全部內容）
 │   │   │   │   └── api/
 │   │   │   │       ├── shots/+server.ts
 │   │   │   │       ├── shots/[id]/+server.ts
 │   │   │   │       ├── shots/batch/+server.ts     # 批次套用圖資
+│   │   │   │       ├── folders/+server.ts          # 資料夾 CRUD 與加入／移出
 │   │   │   │       ├── search/+server.ts
 │   │   │   │       ├── facets/+server.ts          # 標籤＋地點輪播
 │   │   │   │       ├── video/[videoId]/+server.ts # metadata + sb_spec；DELETE = 刪整支收藏
@@ -297,6 +302,19 @@ shot_tag ── shot 與 tag 的多對多關聯
   ├─ tag_id          → tag.id
   └─ source          這條關聯誰建立的：'human'（v1 唯一值）；v2 加 'ai'（AI 推測、待人工確認）
 
+folder ── 使用者自訂的分類資料夾（樹狀；「馬拉松」「露營」這種人工策展的集合）
+  ├─ id              流水號（PK）
+  ├─ owner_id        擁有者識別
+  ├─ parent_id       上層資料夾 → folder.id；根層為 null；深度上限 5 層（見下方評估）
+  ├─ name            資料夾名稱；同一層內不可重名，長度上限 50
+  └─ created_at      建立時間
+
+shot_folder ── shot 與 folder 的多對多關聯（一張圖可同時放進多個資料夾）
+  ├─ shot_id         → shot.id
+  ├─ folder_id       → folder.id
+  ├─ added_at        加入時間；資料夾內預設排序＝新加入在前
+  └─ PRIMARY KEY (shot_id, folder_id)
+
 shot_fts ── FTS5 全文檢索虛擬表（tokenizer = trigram，中文友善）
   └─ 索引 description + place（v2 追加 ai_transcript + ai_visual_desc）
 
@@ -331,6 +349,7 @@ sb_probe ── storyboard 解析器健康紀錄（營運用，前端不讀；�
 | **新增** | `source` | 區分 storyboard 與手動補圖，影響縮圖尺寸與「換一格」是否可用。 |
 | **新增** | `place` | 使用者指定為獨立欄位，不再是 `kind='place'` 的標籤。`tag.kind` 因此移除 `'place'` 選項。 |
 | **保留但 v1 不寫入** | `ai_transcript` / `ai_visual_desc` / `ai_raw` | AI 輔助欄位，一律 `ai_` 前綴。第四步上線時直接填，不需要資料庫遷移。 |
+| **新增表** | `folder` / `shot_folder` | 分類資料夾（見第六節）。與 tag 的分工：tag 是「這張圖是什麼」的描述性 metadata，folder 是「我要把它收在哪」的人工策展，兩者都保留。 |
 
 ### `event_date` 的預設值鏈
 
@@ -360,6 +379,9 @@ flowchart TD
 - `shot(owner_id, place)` —— 地點篩選
 - `shot_tag(tag_id)` / `shot_tag(shot_id)` —— 多對多 join
 - `facet_month_agg(owner_id, ym)` —— 查詢頁輪播
+- `folder(owner_id, parent_id)` —— 資料夾樹展開
+- `shot_folder(folder_id, added_at)` —— 資料夾內容 keyset 分頁
+- `shot_folder(shot_id)` —— 「這張圖在哪些資料夾」與刪除連動
 
 ---
 
@@ -370,8 +392,10 @@ flowchart TD
 底部導覽列五格等寬：
 
 ```
-首頁 ・ 查詢 ・ 【取圖】 ・ 設定 ・ 帳號
+首頁 ・ 查詢 ・ 【取圖】 ・ 分類 ・ 帳號
 ```
+
+原「設定」整頁併入「帳號」（見第十節），空出的一格給「分類」資料夾（見第六節）。
 
 【取圖】不凸出、不加大，**只用顏色與其他四格區分**。理由：這是圖庫類 App，導覽列常疊在縮圖牆上方，凸出的按鈕會遮擋內容；顏色已足以標示它是主要動作。
 
@@ -659,8 +683,8 @@ v1 不實作，但第三步的【完成】按鈕在 v2 會變成【下一步】�
 │ 📍宜蘭 ⌗露營 ⌗搭帳篷      │  ← 地點與標籤
 │ 2025-07-12 ·《宜蘭兩天一夜》│  ← 日期與影片
 ├───────────────────────────┤
-│ [▶ 跳到影片時間] [分享]    │
-│ [✎ 編輯]        [🗑 刪除] │
+│ [▶影片播放] [🗂加入分類]   │
+│ [分享] [✎編輯]  [🗑刪除]  │
 └───────────────────────────┘
 ```
 
@@ -668,8 +692,9 @@ v1 不實作，但第三步的【完成】按鈕在 v2 會變成【下一步】�
 |---|---|
 | 大圖 | R2 的單格 webp 放大置中（`object-fit: contain`）。全屏放大約 3 倍會偏軟，這是儲存 320×180 的天生限制，可接受。 |
 | 左右滑動 | 上一張／下一張。範圍是**目前所在的清單**：從首頁進來＝該月份分組，從查詢結果進來＝該次結果。 |
-| **【▶ 跳到影片時間】** | 導向 `/v/{videoId}?t={at_sec}`，詳情頁播放器從該秒開始播。 |
+| **【▶ 影片播放】** | 導向 `/v/{videoId}?t={at_sec}`，詳情頁播放器從該秒開始播。（曾命名「跳到影片時間」，太長，定案「影片播放」。） |
 | **【分享】** | 以 **Web Share API**（`navigator.share`）叫出系統分享面板，內容為 `https://youtu.be/{videoId}?t={at_sec}`；不支援的環境退回「複製連結」＋ toast 提示。分享的是 YouTube 原片連結（帶秒數），任何人都能開。 |
+| **【🗂 加入分類】** | bottom sheet 列出資料夾樹（可勾多個），勾選即加入／移出，關閉即生效。可在此直接【＋新增資料夾】。 |
 | **【✎ 編輯】** | bottom sheet 就地編輯描述／標籤／地點／時間，與詳情頁的就地編輯同一個元件。 |
 | **【🗑 刪除】** | 確認後刪除這張 shot，檢視器自動滑到下一張。 |
 
@@ -677,6 +702,35 @@ v1 不實作，但第三步的【完成】按鈕在 v2 會變成【下一步】�
 > 使用者點縮圖的第一意圖是「看這張圖」，不是「看影片」；相簿式的全屏＋左右滑是手機上
 > 最熟悉的模式，「跳去影片」降為明確的第二步動作。分享採 Web Share API 而非單純複製，
 > 因為在手機上「分享到某個 App」才是真實動線，複製只是它的降級。
+
+### 分類 `/folders`（新增）
+
+**情境**：首頁滑到喜歡的圖，不想每次都滑很久才找到 —— 把它收進自己命名的資料夾。例如今年 1、3、6 月各跑了一場馬拉松，建一個「馬拉松」資料夾把那些縮圖放進去，之後一點就到。
+
+**與標籤的分工**：tag 描述「這張圖是什麼」（AI 與檢索用的 metadata），folder 是「我要把它收在哪」（純人工策展）。跑馬拉松的圖可能標籤各不相同，但都收在同一個資料夾 —— 兩者不互相取代。
+
+```
+分類                    ［＋新增］
+┌───────────────────────────┐
+│ 🗂 馬拉松            34 › │
+│ 🗂 旅遊              120 ›│
+│    🗂 2025 沖繩       56 ›│   ← 子資料夾縮排
+│    🗂 2024 九州       64 ›│
+│ 🗂 小橘精選           18 ›│
+└───────────────────────────┘
+```
+
+| 規則 | 內容 |
+|---|---|
+| 結構 | 樹狀，**深度上限 5 層**；同層不可重名 |
+| 一張圖可進幾個資料夾 | 不限（多對多） |
+| 資料夾頁顯示 | 上半：子資料夾清單；下半：本層的圖（依 `added_at` 新到舊，keyset 分頁）。計數顯示**含子孫層**的總數 |
+| 點圖 | 開 Lightbox，左右滑動範圍＝該資料夾本層的圖 |
+| 加入圖片 | 由 Lightbox 的【加入分類】進行（首頁／查詢／分類任一處看到圖都能收）；資料夾頁不提供「挑圖加入」，避免再造一個挑圖介面 |
+| 管理 | 新增（選父層）、改名、刪除。刪除資料夾＝**連同子資料夾與所有關聯一併刪，圖本身不動**，確認框明示範圍。搬移資料夾（換父層）列 v2 |
+| shot 被刪時 | `shot_folder` 關聯一併清除（含刪整支收藏） |
+
+**大量資料下的壓力評估**：壓力不在樹，在圖。`folder` 表每人頂多數百列，遞迴 CTE 展開整棵樹是毫秒級；資料夾內容走 `shot_folder(folder_id, added_at)` 索引 keyset 分頁，與首頁同一套原則（不掃全量）。**含子孫的計數**是唯一要小心的點：對小樹（數百節點）用一條遞迴 CTE ＋ join 聚合即可，不需要彙總表 —— 這是「深度限 5 層、同層不設數量上限」仍然安全的原因；若未來實測變慢，再比照 `facet_month_agg` 加彙總表，資料模型不動。
 
 ### 詳情 `/v/[videoId]`
 
@@ -700,7 +754,7 @@ v1 不實作，但第三步的【完成】按鈕在 v2 會變成【下一步】�
 
 ```mermaid
 flowchart LR
-    H["首頁／查詢<br/>點縮圖"] --> LB["Lightbox"] -->|跳到影片時間| V["詳情 /v/[videoId]"]
+    H["首頁／查詢／分類<br/>點縮圖"] --> LB["Lightbox"] -->|影片播放| V["詳情 /v/[videoId]"]
     V -->|⋯ 選單| A["繼續取這支的圖<br/>→ 精靈第二步"]
     V -->|⋯ 選單| B["批次編輯圖資<br/>→ 精靈第三步同一介面"]
     V -->|⋯ 選單| C["刪除整支收藏"]
@@ -829,13 +883,13 @@ storyboard 端點**沒有任何官方文件或相容性承諾**。YouTube 前端
 |---|---|---|
 | 1 | **寫入 D1**（`sb_probe` 本身就是紀錄） | ✅ v1 必做。零成本，事後可查完整歷史。管理員以 `wrangler d1 execute` 或 Cloudflare Dashboard 查詢。 |
 | 2 | **Workers Logs（observability）結構化紀錄** | ✅ v1 必做。probe 以 `console.error(JSON.stringify({alert:'sb_parser_down', …}))` 輸出，在 Dashboard 的 Workers Logs 介面可直接篩選；免費層含 200k events/日，綽綽有餘。 |
-| 3 | **Cloudflare 發信通知管理員** | ⚠️ **暫緩**。Workers 的 `send_email` binding 可免費發信，但前提是**自訂網域＋啟用 Email Routing** —— 本專案 v1 用 `*.workers.dev` 免費子網域，不符合前提。日後若購買網域即可補上（probe 加一個 binding、幾行程式）；在那之前，管道 1＋2 已足夠，因為這是功能降級而非服務中斷，發現延遲一兩天可接受。 |
+| 3 | **Cloudflare 發信通知管理員** | ✅ **採用**。Workers 的 `send_email` binding 可免費發信，前提是自訂網域＋啟用 Email Routing —— **`scottchayaa.com` 已在 Cloudflare 上，前提成立**。probe 加一個 binding，觸發時寄一封摘要（連續失敗次數、最近的 `sb_probe` 紀錄）到管理員信箱。每日 Cron 只跑一次，量極小，遠低於免費額度。 |
 
 不做的：前端橫幅（前端不需要知道營運狀態）、第三方 webhook（不為此引入外部服務）、推播。
 
 #### 4. 恢復
 
-金絲雀探測成功即視為恢復（`sb_probe` 最新一筆 `ok`）。降級期間加入的影片，可在設定頁按【重新抓取缺少的縮圖】批次補抓 —— 這一顆是**使用者面的修復功能**，與營運告警無關，因此留在設定頁。
+金絲雀探測成功即視為恢復（`sb_probe` 最新一筆 `ok`）。降級期間加入的影片，可在帳號頁按【重新抓取缺少的縮圖】批次補抓 —— 這一顆是**使用者面的修復功能**，與營運告警無關，因此留在帳號頁（見第十節）。
 
 ### 資產尺寸與快取
 
@@ -890,7 +944,7 @@ storyboard 端點**沒有任何官方文件或相容性承諾**。YouTube 前端
 
 ### 播放
 
-點縮圖 → **Lightbox**（見第六節）→【跳到影片時間】→ 詳情頁 iframe 跳到 `at_sec` 開始播放：
+點縮圖 → **Lightbox**（見第六節）→【影片播放】→ 詳情頁 iframe 跳到 `at_sec` 開始播放：
 
 ```
 https://www.youtube.com/embed/{id}?start={at_sec}&autoplay=1&playsinline=1
@@ -927,7 +981,7 @@ https://www.youtube.com/embed/{id}?start={at_sec}&autoplay=1&playsinline=1
 3. 登入通過後，之後每個請求都自動帶 `Cf-Access-Jwt-Assertion` header
 4. 我們的程式只做一件事：從該 header 取出 email 當 `owner_id`（`apps/web/src/lib/server/auth.ts`，約十行）
 
-選它的理由：**應用程式端幾乎零行認證程式碼**；沒登入的人連靜態資源都拿不到（攔截發生在邊緣，不消耗 Worker 額度）；免費層 50 人；`*.workers.dev` 子網域可直接掛 policy，不需買網域。
+選它的理由：**應用程式端幾乎零行認證程式碼**；沒登入的人連靜態資源都拿不到（攔截發生在邊緣，不消耗 Worker 額度）；免費層 50 人。站點掛在自有網域 `shots.scottchayaa.com`（見第十三節），Access policy 直接綁該 hostname。
 
 ### 與「純前端 Google 登入」的差異
 
@@ -946,7 +1000,9 @@ https://www.youtube.com/embed/{id}?start={at_sec}&autoplay=1&playsinline=1
 
 ---
 
-## 十、設定頁
+## 十、帳號頁（原設定頁併入）
+
+獨立的「設定」頁取消，全部內容併入導覽列最右的「帳號」頁 `/account` —— 設定項目已經少到撐不起一頁，而帳號頁本來就要存在。
 
 | 區塊 | 項目 | 變動 |
 |---|---|---|
@@ -974,12 +1030,13 @@ https://www.youtube.com/embed/{id}?start={at_sec}&autoplay=1&playsinline=1
 | 5 | 手動補圖（相簿選圖、縮圖、上傳、時間點帶入） | 補得了 YouTube 沒給的畫面 |
 | 6 | 精靈第三步：勾選子集、抽屜、套用語意、快捷列 | 一趟流程能走完並入庫 |
 | 7 | 草稿續做、完成後導回首頁並捲到該月份 | 中斷不再白費 |
-| 8 | Lightbox：全屏檢視、左右滑動、跳影片、分享、編輯、刪除 | 圖庫的核心瀏覽體驗成形 |
-| 9 | 詳情頁改造：真播放器、就地編輯、繼續取圖、批次編輯圖資、刪除整支收藏 | 事後修得動、刪得掉 |
-| 10 | 查詢頁把地點併入標籤輪播、`/api/facets` | 地點查得到 |
-| 11 | 設定頁增刪 | 設定與功能一致 |
-| 12 | D1 schema + migrations + `d1.ts` + R2 + Cloudflare Access | 上線 |
-| 13 | `apps/probe`：失敗分類、Cron 金絲雀、D1＋Logs 告警、孤兒清理 | 解析器壞掉時管理員會知道 |
+| 8 | Lightbox：全屏檢視、左右滑動、影片播放、加入分類、分享、編輯、刪除 | 圖庫的核心瀏覽體驗成形 |
+| 9 | 分類資料夾：樹狀 CRUD、資料夾頁、Lightbox 加入／移出 | 自己的策展集合能用了 |
+| 10 | 詳情頁改造：真播放器、就地編輯、繼續取圖、批次編輯圖資、刪除整支收藏 | 事後修得動、刪得掉 |
+| 11 | 查詢頁把地點併入標籤輪播、`/api/facets` | 地點查得到 |
+| 12 | 帳號頁（含原設定項目增刪） | 設定與功能一致 |
+| 13 | D1 schema + migrations + `d1.ts` + R2 + 自訂網域 + Cloudflare Access | 上線於 shots.scottchayaa.com |
+| 14 | `apps/probe`：失敗分類、Cron 金絲雀、D1＋Logs＋email 告警、孤兒清理 | 解析器壞掉時管理員會收到信 |
 
 ---
 
@@ -1008,9 +1065,13 @@ Playwright，預設 viewport 使用 `devices['Pixel 7']`，跑在 mock 資料上
 17. 解析器失效時，已存 R2 的縮圖仍正常顯示
 18. 過濾強度高／中／低 → 過濾張數依序遞減；切換強度是對原始勾選重算
 19. 影片只有 L2 沒有 L3 → 縮圖牆正常顯示並提示畫質較低，存檔 key 為 `L2`
-20. Lightbox：左右滑動換張、【跳到影片時間】導向詳情頁且秒數正確、【刪除】後自動跳下一張
+20. Lightbox：左右滑動換張、【影片播放】導向詳情頁且秒數正確、【刪除】後自動跳下一張
 21. 【批次編輯圖資】→ 進第三步介面，改標籤後詳情頁與查詢結果同步更新
 22. 【刪除整支收藏】→ 首頁不再出現該影片的任何縮圖，`facet_month_agg` 計數正確遞減
+23. 建立資料夾與子資料夾 → Lightbox【加入分類】勾選 → 分類頁計數含子孫層、資料夾頁看得到該圖
+24. 刪除資料夾 → 子資料夾與關聯一併消失，**圖本身仍在首頁**
+25. 已在第 5 層的資料夾 → 不能再建子層（UI 阻擋）
+26. 刪除 shot → 它在所有資料夾中的關聯一併消失
 
 **視覺回歸（screenshot diff）v1 不做。** UI 仍在快速變動的階段導入，會導致測試持續失敗、時間耗費在核可 baseline 而非開發。
 
@@ -1029,7 +1090,8 @@ Playwright，預設 viewport 使用 `devices['Pixel 7']`，跑在 mock 資料上
 | Cloudflare R2 | 縮圖 | 10 GB、無 egress 費 | 約 3 MB | $0 |
 | Cloudflare Access | Google 登入保護 | 50 人 | 1 人 | $0 |
 | Cron Triggers | 金絲雀探測、孤兒清理 | 免費層支援 | 每日 2 次 | $0 |
-| 網域 | `*.workers.dev` | 免費子網域 | — | $0 |
+| Email Routing + send_email | 告警發信（見第七節） | 免費 | 極少（僅告警時） | $0 |
+| 網域 | **`shots.scottchayaa.com`**（自有 `scottchayaa.com` 的子網域，Workers Custom Domain） | 網域已持有，掛 Workers 免費 | — | $0 追加 |
 
 **v1 相對舊規格更省**：不做影片分析，Gemini 只用在查詢解析（純文字、極輕量）。舊規格估算的「500 clips ≈ 4.2 小時影片分析」整個消失。
 
@@ -1071,13 +1133,14 @@ Playwright，預設 viewport 使用 `devices['Pixel 7']`，跑在 mock 資料上
 
 ### v1（本規格範圍）
 
-- 手機（Android）優先的 PWA，五條路由：首頁／查詢／取圖／詳情／設定
+- 手機（Android）優先的 PWA，六條路由：首頁／查詢／取圖／分類／詳情／帳號
 - **單一入庫路徑**：四步驟取圖精靈（v1 實作前三步）
 - 縮圖牆批次挑圖、全部選取、過濾相似、手動補圖、只看已選
 - 任意子集批次定義圖資（時間／地點／標籤／描述）
 - storyboard L3 單格縮圖存 R2（含降級路徑與健康偵測告警）
 - 首頁年月縮圖牆、標籤／文字兩種查詢、地點併入輪播
-- Lightbox 全屏檢視（左右滑動、跳影片、Web Share 分享、編輯、刪除）
+- Lightbox 全屏檢視（左右滑動、影片播放、加入分類、Web Share 分享、編輯、刪除）
+- 分類資料夾（樹狀、深度 5、多對多收圖）
 - 詳情頁播放與就地編輯、影片層級的批次編輯與刪除
 - 本機草稿續做
 - Cloudflare Access（Google 登入）
@@ -1093,6 +1156,7 @@ Playwright，預設 viewport 使用 `devices['Pixel 7']`，跑在 mock 資料上
 | Chrome 擴充功能 | v2 | 資料都在伺服器端，PC 取的圖會自動出現在手機上 |
 | YT App 分享接收（Share Target） | v2 | v1 收斂為單一入口。日後加回時，行為應為「直接跳進精靈第二步」 |
 | 上傳實體照片（非影片畫面） | v2 | 範圍明確限定為 YouTube 影片畫面；手動補圖是例外，因為它綁定影片時間點 |
+| 資料夾搬移（換父層）與手動排序 | v2 | v1 先建立／改名／刪除／收圖；樹的重組屬低頻操作 |
 | 整片掃描（`fullscan`） | v2 | 與「手動挑畫面」的產品核心不同調 |
 | iOS 支援 | v2 | 相簿選圖與 PWA 行為需另外驗證 |
 | 向量搜尋（Vectorize） | v2 | FTS5 + trigram 先驗證品質是否足夠 |
@@ -1111,7 +1175,7 @@ Playwright，預設 viewport 使用 `devices['Pixel 7']`，跑在 mock 資料上
 - **金絲雀影片的選擇** —— 需挑一支「長期存在、不會被刪、確定有 storyboard」的公開影片。候選條件：官方頻道、發布已久、長度中等。選定後寫入設定常數。
 - **第二步的 sheet 載入策略** —— 148 張縮圖分佈在約 17 張 sheet 上。是一次全載，還是依捲動位置漸進載入？取決於實測的首屏時間，實作時以真機量測決定。
 - **查詢解析的 prompt** —— 如何讓 Gemini 穩定區分「這是地點」與「這是標籤」，需要實際迭代。
-- **告警 email 的補齊時機** —— `send_email` binding 需要自訂網域＋Email Routing（見第七節）。若日後購買網域，probe 補一個 binding 即可發信；在此之前以 D1＋Workers Logs 為準。
+- **Email Routing 的啟用確認** —— `scottchayaa.com` 的 zone 需啟用 Email Routing 並驗證管理員收件位址，probe 的 `send_email` binding 才能寄信。屬一次性設定，實作階段 14 時處理。
 
 ---
 
@@ -1127,7 +1191,7 @@ Playwright，預設 viewport 使用 `devices['Pixel 7']`，跑在 mock 資料上
 
 ### 區間從何而來
 
-`shot` 只有 `at_sec`，沒有結束時間。送 Gemini 時由設定頁的兩個數字推導：
+`shot` 只有 `at_sec`，沒有結束時間。送 Gemini 時由帳號頁的兩個數字推導：
 
 ```
 [max(0, at_sec - 往前N秒), min(duration, at_sec + 往後M秒)]
