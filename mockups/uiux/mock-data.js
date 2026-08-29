@@ -176,14 +176,14 @@ for (const c of CLIPS) c.place = PLACES[c.id] || '';
 const FOLDERS = [
   { id: 'f1', name: '馬拉松', parent: null },
   { id: 'f2', name: '旅遊', parent: null },
-  { id: 'f3', name: '加勒比海之旅', parent: 'f2' },
-  { id: 'f4', name: '廣西美食', parent: 'f2' },
+  { id: 'f3', name: '加勒比海之旅', parent: null },
+  { id: 'f4', name: '廣西美食', parent: null },
   { id: 'f5', name: '風景精選', parent: null }
 ];
 // folderId -> Set(clipId)
 const FOLDER_SHOTS = {
   f1: new Set(),
-  f2: new Set(),
+  f2: new Set(['c05']),
   f3: new Set(['c01', 'c02', 'c03', 'c04']),
   f4: new Set(['c06', 'c07', 'c08']),
   f5: new Set(['c03', 'c11', 'c13'])

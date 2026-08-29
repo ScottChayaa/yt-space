@@ -49,6 +49,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 }
 .topbar .more.accent { color: var(--accent); }
 .topbar .title.center { text-align: center; }
+.topbar .spacer { width: 32px; flex: 0 0 auto; }
 .topbar .more { color: var(--text-dim); margin-left: auto; }
 .topbar .title { line-height: 41px; font-size: 1rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 
@@ -312,7 +313,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
   background: none; border: none; border-bottom: 3px solid transparent;
   color: var(--text-dim); margin-bottom: -7px; padding: 0;
 }
-.qtabs button.on { color: var(--accent); border-bottom-color: var(--accent); font-weight: 700; }
+.qtabs button.on { color: var(--text); border-bottom-color: var(--accent); font-weight: 700; }
 
 /* 查詢欄位（時間、關鍵字）：整列滿版、方正圓角 */
 .qfield { padding: 10px 14px 0; }
@@ -438,6 +439,16 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 
 /* ───────── 分類資料夾 ───────── */
 .fd-list { padding: 8px 12px; }
+/* 分類：兩欄卡片，單一階層 */
+.fd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px; }
+.fd-card {
+  display: flex; align-items: center; gap: 9px; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px 13px; box-shadow: var(--shadow);
+}
+.fd-card .ic { color: var(--accent); flex: 0 0 auto; }
+.fd-card .name { flex: 1; min-width: 0; font-size: 0.92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fd-card .cnt { font-size: 0.78rem; color: var(--text-dim); font-variant-numeric: tabular-nums; }
 .fd-row { display: flex; align-items: center; gap: 11px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 13px 14px; margin-bottom: 8px; box-shadow: var(--shadow); cursor: pointer; }
 .fd-row .ic { color: var(--accent); }
 .fd-row .name { flex: 1; font-size: 0.95rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
