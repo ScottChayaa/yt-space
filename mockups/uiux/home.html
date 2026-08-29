@@ -17,10 +17,6 @@
 
   <div class="grid-scroll" id="grid"></div>
   <div class="empty" id="empty" style="display:none">此時間點以前沒有片段</div>
-
-  <!-- immich 懸浮時間軸 -->
-  <div class="scrubber" id="scrubber"></div>
-  <div class="scrubber-bubble" id="scrubber-bubble"></div>
 </div>
 
 <div id="nav"></div>
@@ -79,8 +75,6 @@
           // 帶著「該標籤 + 這個月份」跳到共用的結果頁
           location.href = `results.html?tags=${encodeURIComponent(chip.dataset.name)}&upto=${g.key}`));
     }
-
-    APP.setupScrubber(groups);
   }
 
   /* 套用時間：只保留該月（含）以前的資料 —— 最上方就是該月，往下滑即往更早 */

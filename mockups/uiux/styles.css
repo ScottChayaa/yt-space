@@ -101,29 +101,6 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .tile:active { opacity: 0.85; }
 .tile-tags { display: flex; flex-wrap: wrap; gap: 2px 8px; margin: 0; padding: 6px 7px 8px; }
 
-/* ───────── immich 懸浮時間軸（刻度）───────── */
-.scrubber {
-  position: fixed; right: 0; top: 96px; bottom: calc(var(--nav-h) + 8px);
-  width: 40px; z-index: 25;
-  display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end;
-  padding: 6px 6px;
-  opacity: 0; transition: opacity 0.2s; /* 平時隱藏，滑動/拖曳時才顯現 */
-}
-.scrubber.show { opacity: 1; }
-.scrubber .tick { display: flex; align-items: center; justify-content: flex-end; gap: 5px; cursor: pointer; height: 14px; }
-.scrubber .tick .line { width: 9px; height: 2px; background: #C3C8DA; border-radius: 1px; }
-.scrubber .tick.year .line { width: 15px; height: 2px; background: var(--accent); }
-.scrubber .tick.year .lab { font-size: 0.6rem; font-weight: 700; color: var(--text-dim); }
-.scrubber-bubble {
-  position: fixed; right: 50px; z-index: 40;
-  background: rgba(30,27,75,0.92); backdrop-filter: blur(14px);
-  color: #fff; font-size: 0.85rem; font-weight: 600;
-  padding: 7px 14px; border-radius: 999px; box-shadow: var(--shadow-lg);
-  opacity: 0; transform: translateY(-50%) scale(0.9);
-  transition: opacity 0.18s, transform 0.18s; pointer-events: none; white-space: nowrap;
-}
-.scrubber-bubble.show { opacity: 1; transform: translateY(-50%) scale(1); }
-
 /* ───────── 詳細頁：自繪播放器 ───────── */
 .player { position: sticky; top: 0; z-index: 20; background: #000; }
 .player .stage { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; display: flex; justify-content: center; overflow: hidden; }
@@ -348,6 +325,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
   padding: 13px; border-radius: 10px; font-size: 0.95rem; font-weight: 700;
   box-shadow: 0 4px 14px rgba(79,70,229,0.28);
 }
+.qgo.record { background: var(--record); box-shadow: 0 4px 14px rgba(225,29,72,0.28); }
 .qgo:disabled { background: #C7CBE4; box-shadow: none; }
 
 /* ───────── 查詢結果頁 ───────── */
@@ -389,10 +367,20 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .wz-field input[type=text] { width: 100%; box-sizing: border-box; background: var(--surface); border: 1.5px solid #C3CBF7; border-radius: 12px; padding: 12px 14px; font-size: 0.95rem; color: var(--text); outline: none; }
 .wz-field input[type=text]:focus { border-color: var(--accent); }
 .wz-err { color: var(--danger); font-size: 0.82rem; margin: 8px 2px; }
-.wz-hint { font-size: 0.78rem; color: var(--text-dim); line-height: 1.7; margin-top: 14px; }
-.wz-hint a { color: var(--accent); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wz-go { width: 100%; background: var(--record); color: #fff; border: none; padding: 13px; border-radius: 12px; font-size: 0.95rem; font-weight: 700; margin-top: 16px; }
 .wz-go:disabled { opacity: 0.4; }
+
+/* 取圖歷史紀錄 */
+.wz-hist .hrow {
+  display: flex; align-items: center; gap: 10px; cursor: pointer;
+  padding: 10px 2px; border-bottom: 1px solid var(--border);
+}
+.wz-hist .hrow:last-child { border-bottom: none; }
+.wz-hist .ht { flex: 1; font-size: 0.85rem; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wz-hist .hm { font-size: 0.74rem; color: var(--text-dim); opacity: 0.75; white-space: nowrap; }
+.wz-hist .empty { padding: 22px 0; }
+/* 底部有固定按鈕的頁面，內容要留出空間 */
+.has-fixed-go { padding-bottom: calc(var(--nav-h) + 76px); }
 
 /* 第二步：假播放器（sb-frame 當畫面 + 時間拉桿模擬「拖到某一刻」） */
 .wz-player { position: sticky; top: 88px; z-index: 28; background: #000; }

@@ -85,61 +85,6 @@ function bindPress(el, { onTap, onHold, delay = 450 }) {
   el.addEventListener('pointerleave', cancel);
 }
 
-/* ───────── immich 時間軸（含刻度）───────── */
-function setupScrubber(groups) {
-  const bar = document.getElementById('scrubber');
-  const bubble = document.getElementById('scrubber-bubble');
-  if (!bar || !bubble) return;
-
-  bar.innerHTML = groups.map((g, i) => {
-    const isYearStart = i === 0 || groups[i - 1].label.slice(0, 4) !== g.label.slice(0, 4);
-    return `<div class="tick ${isYearStart ? 'year' : ''}" data-key="${g.key}">
-      ${isYearStart ? `<span class="lab">${g.label.slice(0, 4)}</span>` : ''}
-      <span class="line"></span>
-    </div>`;
-  }).join('');
-
-  bar.querySelectorAll('.tick').forEach(t => t.addEventListener('click', () => {
-    groups.find(x => x.key === t.dataset.key)?.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }));
-
-  let hideTimer = null, barHideTimer = null;
-  // 時間軸平時隱藏，拖曳/滑動時才顯現
-  function flashBar() {
-    bar.classList.add('show');
-    clearTimeout(barHideTimer);
-    barHideTimer = setTimeout(() => { if (!dragging) bar.classList.remove('show'); }, 1100);
-  }
-  function showBubble(clientY) {
-    let current = groups[0];
-    for (const g of groups) if (g.el.getBoundingClientRect().top - 120 <= 0) current = g;
-    bubble.textContent = current.label;
-    bubble.style.top = clientY + 'px';
-    bubble.classList.add('show');
-    clearTimeout(hideTimer);
-    hideTimer = setTimeout(() => bubble.classList.remove('show'), 700);
-  }
-  if (setupScrubber._onScroll) window.removeEventListener('scroll', setupScrubber._onScroll);
-  setupScrubber._onScroll = () => { flashBar(); showBubble(window.innerHeight * 0.4); };
-  window.addEventListener('scroll', setupScrubber._onScroll, { passive: true });
-
-  let dragging = false;
-  function fromPointer(clientY) {
-    const ticks = [...bar.querySelectorAll('.tick')];
-    let nearest = ticks[0], best = Infinity;
-    for (const t of ticks) {
-      const r = t.getBoundingClientRect();
-      const d = Math.abs((r.top + r.bottom) / 2 - clientY);
-      if (d < best) { best = d; nearest = t; }
-    }
-    const g = groups.find(x => x.key === nearest.dataset.key);
-    if (g) { g.el.scrollIntoView({ block: 'start' }); showBubble(clientY); }
-  }
-  bar.addEventListener('pointerdown', (e) => { dragging = true; flashBar(); fromPointer(e.clientY); });
-  window.addEventListener('pointermove', (e) => { if (dragging) fromPointer(e.clientY); });
-  window.addEventListener('pointerup', () => { dragging = false; flashBar(); });
-}
-
 /* 首頁 tile 用：取 top 2 標籤（human 優先，place/person 優先）*/
 function top2Tags(clip) {
   const order = { place: 0, person: 1, topic: 2, pet: 3, other: 4 };
@@ -243,7 +188,7 @@ function openMonthPicker(opts = {}) {
   yearsEl.querySelector('.dp-month.sel')?.scrollIntoView({ block: 'center' });
 }
 
-window.APP = { svg, ICONS, KIND, kindSvg, tagChip, renderNav, bindPress, setupScrubber, top2Tags, openSheet, closeSheet, openMonthPicker, closeMonthPicker, monthLabel };
+window.APP = { svg, ICONS, KIND, kindSvg, tagChip, renderNav, bindPress, top2Tags, openSheet, closeSheet, openMonthPicker, closeMonthPicker, monthLabel };
 
 /* ═══════════ Shot 版共用元件（2026-08-28）═══════════ */
 

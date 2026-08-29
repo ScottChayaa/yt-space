@@ -66,23 +66,44 @@ function saveDraft() {
 }
 function clearDraft() { localStorage.removeItem(DRAFT_KEY); }
 
+/* ───── 取圖歷史（完成取圖後寫入）───── */
+const HIST_KEY = 'ytspace_capture_history';
+function loadHistory() {
+  const saved = localStorage.getItem(HIST_KEY);
+  if (saved) return JSON.parse(saved);
+  // mockup 預設帶三筆，示範歷史紀錄的樣子（也方便直接帶入示範影片）
+  return ['Ea8ICLXTDaU', 'Pe226YsYVWk', '8QwV1fcYtfs'].map((id, i) => ({
+    id, title: findVideo(id).v.title.slice(0, 18) + '…', n: [4, 3, 2][i], at: ['08/20', '07/12', '05/03'][i]
+  }));
+}
+function pushHistory(id, title, n) {
+  const d = new Date();
+  const at = `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+  const list = loadHistory().filter(r => r.id !== id);
+  list.unshift({ id, title: title.slice(0, 18) + '…', n, at });
+  localStorage.setItem(HIST_KEY, JSON.stringify(list.slice(0, 20)));
+}
+
 /* ───── 第一步：輸入網址 ───── */
 function renderStep1(err) {
+  const history = loadHistory();
   stage.innerHTML = `
-    <div class="wz-body wz-field">
+    <div class="wz-body wz-field has-fixed-go">
       <label>貼上 YouTube 網址或 videoId</label>
       <input type="text" id="url" placeholder="https://youtu.be/…" autocomplete="off">
       ${err ? `<div class="wz-err">${err}</div>` : ''}
-      <button class="wz-go" id="go">確定</button>
-      <div class="wz-hint">mockup 可用的示範影片（點了自動帶入）：
-        ${['Ea8ICLXTDaU', 'Pe226YsYVWk', '8QwV1fcYtfs'].map(id =>
-          `<a href="#" data-id="${id}">youtu.be/${id}　《${findVideo(id).v.title.slice(0, 18)}…》</a>`).join('')}
-      </div>
-    </div>`;
+      <label>歷史紀錄</label>
+      <div class="wz-hist">${history.length ? history.map(r => `
+        <div class="hrow" data-id="${r.id}">
+          <span class="ht">《${r.title}》</span>
+          <span class="hm">${r.n} 張 · ${r.at}</span>
+        </div>`).join('') : '<div class="empty">還沒有取過圖</div>'}</div>
+    </div>
+    <button class="qgo record" id="go">確定</button>`;
   const input = document.getElementById('url');
-  stage.querySelectorAll('a[data-id]').forEach(a => a.onclick = e => {
-    e.preventDefault(); input.value = 'https://youtu.be/' + a.dataset.id;
-  });
+  // 點歷史紀錄＝帶入該支影片的網址
+  stage.querySelectorAll('.hrow').forEach(row => row.onclick = () =>
+    input.value = 'https://youtu.be/' + row.dataset.id);
   document.getElementById('go').onclick = () => {
     const id = parseVideoId(input.value);
     if (!id) return renderStep1('無法從輸入內容解析出 videoId');
@@ -370,6 +391,7 @@ function renderStep3() {
       });
     });
     clearDraft();
+    pushHistory(W.v.id, W.v.title, W.items.length);
     sessionStorage.setItem('ytspace_toast', `已新增 ${W.items.length} 張`);
     // 首頁要自動跳到新圖所在的月份（否則會被「某月以前」的時間篩選擋住）
     sessionStorage.setItem('ytspace_jump', (W.items[0].eventDate || '2026-08').slice(0, 7));
