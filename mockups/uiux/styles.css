@@ -16,7 +16,8 @@
   --radius: 14px;
   --shadow: 0 1px 3px rgba(30,27,75,0.06), 0 1px 2px rgba(30,27,75,0.04);
   --shadow-lg: 0 8px 28px rgba(30,27,75,0.14);
-  --head-pad: calc(14px + env(safe-area-inset-top)) 14px 8px;   /* 頂部列統一起始位置 */
+  --head-pad: calc(8px + env(safe-area-inset-top)) 14px 6px;   /* 頂部列統一起始位置 */
+  --head-h: 55px;                                             /* 頂部列高度（sticky 定位用）*/
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -47,6 +48,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
   background: none; border: none; padding: 0 6px; color: var(--text); border-radius: 8px;
 }
 .topbar .more.accent { color: var(--accent); }
+.topbar .title.center { text-align: center; }
 .topbar .more { color: var(--text-dim); margin-left: auto; }
 .topbar .title { line-height: 41px; font-size: 1rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 
@@ -68,7 +70,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 
 /* ───────── immich 風格日期網格 ───────── */
 .grid-scroll { position: relative; }
-.date-group { padding: 14px 3px 2px; scroll-margin-top: 58px; }   /* 讓 sticky 頂列不遮住月份標題 */
+.date-group { padding: 14px 3px 2px; scroll-margin-top: var(--head-h); }   /* 讓 sticky 頂列不遮住月份標題 */
 .date-group h2 { margin: 0 0 6px 4px; font-size: 0.92rem; font-weight: 700; color: var(--text); }
 .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
 
@@ -321,7 +323,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 /* ───────── 查詢頁：兩種查詢法切換 ───────── */
 .qtabs { display: flex; gap: 6px; padding: var(--head-pad); }
 .qtabs button {
-  flex: 1; padding: 9px 0; border-radius: 8px; font-size: 0.88rem;
+  flex: 1; height: 41px; border-radius: 8px; font-size: 0.88rem;
   background: var(--surface); border: 1px solid var(--border); color: var(--text-dim);
 }
 .qtabs button.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
@@ -379,7 +381,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .lb .lb-actions .ic { width: 16px; height: 16px; }
 
 /* ───────── 取圖精靈 ───────── */
-.wz-steps { display: flex; gap: 5px; padding: 8px 14px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 56px; z-index: 29; }
+.wz-steps { display: flex; gap: 5px; padding: 8px 14px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: var(--head-h); z-index: 29; }
 .wz-steps span { flex: 1; height: 4px; border-radius: 2px; background: #D5D9E6; }
 .wz-steps span.done { background: var(--record); }
 .wz-body { padding: 14px; }

@@ -9,8 +9,7 @@
 <body>
 <div class="app-main">
   <div class="topbar">
-    <button class="back" id="backBtn"></button>
-    <span class="title" id="wzTitle">取圖</span>
+    <span class="title center" id="wzTitle">取圖</span>
   </div>
   <div class="wz-steps" id="steps"><span></span><span></span><span></span><span></span></div>
   <div id="stage"></div>
@@ -23,7 +22,6 @@
 <script src="app.js"></script>
 <script>
 document.getElementById('nav').innerHTML = APP.renderNav('capture');
-document.getElementById('backBtn').innerHTML = APP.svg(APP.ICONS.back, 'ic');
 
 const params = new URLSearchParams(location.search);
 const DRAFT_KEY = 'ytspace_capture_draft';
