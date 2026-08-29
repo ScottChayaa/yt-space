@@ -295,9 +295,11 @@ function openLightbox(list, idx, opts = {}) {
         <span style="width:32px"></span>
       </div>
       <div class="lb-stage" id="lb-stage">
-        <div class="lb-img" style="${M.thumbStyle(s.videoId, s.start)}"></div>
-        ${list.length > 1 ? `<button class="lb-nav prev" id="lb-prev">${svg(ICONS.back, 'ic')}</button>
-        <button class="lb-nav next" id="lb-next">${svg(ICONS.chevronRight, 'ic')}</button>` : ''}
+        <div class="lb-track" id="lb-track">
+          <div class="lb-img" style="${list[i - 1] ? M.thumbStyle(list[i - 1].videoId, list[i - 1].start) : ''}"></div>
+          <div class="lb-img" style="${M.thumbStyle(s.videoId, s.start)}"></div>
+          <div class="lb-img" style="${list[i + 1] ? M.thumbStyle(list[i + 1].videoId, list[i + 1].start) : ''}"></div>
+        </div>
       </div>
       <div class="lb-info">
         <div class="d ${s.summary ? '' : 'dim'}">${s.summary || '（沒有描述，之後可由 AI 補）'}</div>
@@ -312,8 +314,6 @@ function openLightbox(list, idx, opts = {}) {
         <button class="danger" id="lb-del">${svg(ICONS.trash, 'ic')} 刪除</button>
       </div>`;
     lb.querySelector('#lb-close').onclick = close;
-    lb.querySelector('#lb-prev') && (lb.querySelector('#lb-prev').onclick = () => { i--; render(); });
-    lb.querySelector('#lb-next') && (lb.querySelector('#lb-next').onclick = () => { i++; render(); });
     lb.querySelector('#lb-play').onclick = () => location.href = `detail.html?v=${s.videoId}&c=${s.id}`;
     lb.querySelector('#lb-folder').onclick = () => openFolderPicker(s);
     lb.querySelector('#lb-edit').onclick = () => openShotSheet(s, render);
@@ -327,15 +327,33 @@ function openLightbox(list, idx, opts = {}) {
       M.removeClip(s.id); list.splice(i, 1); toast('已刪除');
       list.length ? render() : close();
     };
-    // 左右滑動
-    let sx = null;
+    /* 左右滑動：拖曳時圖片跟著走，放開就滑到下一張（沒有下一張則回彈）*/
     const stage = lb.querySelector('#lb-stage');
-    stage.onpointerdown = e => { sx = e.clientX; };
-    stage.onpointerup = e => {
+    const track = lb.querySelector('#lb-track');
+    const W = () => stage.clientWidth;
+    let sx = null, dx = 0;
+    stage.onpointerdown = e => {
+      sx = e.clientX; dx = 0;
+      track.style.transition = 'none';
+      stage.setPointerCapture(e.pointerId);
+    };
+    stage.onpointermove = e => {
       if (sx == null) return;
-      const dx = e.clientX - sx; sx = null;
-      if (dx > 48 && i > 0) { i--; render(); }
-      else if (dx < -48 && i < list.length - 1) { i++; render(); }
+      dx = e.clientX - sx;
+      // 到頭到尾時加阻尼，讓使用者感覺得到邊界
+      if ((i === 0 && dx > 0) || (i === list.length - 1 && dx < 0)) dx *= 0.35;
+      track.style.transform = `translateX(${-W() + dx}px)`;
+    };
+    stage.onpointerup = () => {
+      if (sx == null) return;
+      const moved = dx; sx = null;
+      if (Math.abs(moved) < 1) return;                       // 純點擊，不動
+      const dir = moved < 0 ? 1 : -1;
+      const next = Math.abs(moved) > 48 && list[i + dir] ? i + dir : i;
+      track.style.transition = 'transform .22s ease-out';
+      track.style.transform = `translateX(${-W() - (next - i) * W()}px)`;
+      const done = () => { track.removeEventListener('transitionend', done); i = next; render(); };
+      track.addEventListener('transitionend', done);
     };
   }
   render();

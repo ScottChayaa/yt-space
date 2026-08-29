@@ -342,10 +342,10 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .lb.show { display: flex; }
 .lb .lb-top { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; }
 .lb .lb-top button { background: none; border: none; color: #fff; display: flex; padding: 6px; }
-.lb .lb-stage { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; min-height: 0; touch-action: pan-y; }
+.lb .lb-stage { flex: 1; position: relative; min-height: 0; overflow: hidden; touch-action: pan-y; }
+.lb .lb-track { display: flex; align-items: center; height: 100%; width: 100%; transform: translateX(-100%); will-change: transform; }
+.lb .lb-track > .lb-img { flex: 0 0 100%; }
 .lb .lb-img { width: 100%; max-height: 100%; aspect-ratio: 16/9; background-repeat: no-repeat; background-color: #000; }
-.lb .lb-nav { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.12); border: none; color: #fff; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
-.lb .lb-nav.prev { left: 8px; } .lb .lb-nav.next { right: 8px; }
 .lb .lb-info { padding: 10px 16px 4px; }
 .lb .lb-info .d { font-size: 0.95rem; margin-bottom: 6px; }
 .lb .lb-info .d.dim { color: rgba(255,255,255,0.45); font-style: italic; }
