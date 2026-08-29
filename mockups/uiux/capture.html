@@ -92,12 +92,9 @@ function renderStep1(err) {
       <label>貼上 YouTube 網址或 videoId</label>
       <input type="text" id="url" placeholder="https://youtu.be/…" autocomplete="off">
       ${err ? `<div class="wz-err">${err}</div>` : ''}
-      <label>歷史紀錄</label>
+      <label class="spaced">歷史紀錄</label>
       <div class="wz-hist">${history.length ? history.map(r => `
-        <div class="hrow" data-id="${r.id}">
-          <span class="ht">《${r.title}》</span>
-          <span class="hm">${r.n} 張 · ${r.at}</span>
-        </div>`).join('') : '<div class="empty">還沒有取過圖</div>'}</div>
+        <div class="hrow" data-id="${r.id}"><span class="ht">《${r.title}》</span></div>`).join('') : '<div class="empty">還沒有取過圖</div>'}</div>
     </div>
     <button class="qgo record" id="go">確定</button>`;
   const input = document.getElementById('url');

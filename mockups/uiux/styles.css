@@ -151,6 +151,13 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 }
 .bottom-nav a { display: flex; align-items: center; justify-content: center; color: var(--text-dim); }
 .bottom-nav a .nav-ic-wrap { position: relative; display: flex; }
+/* 取圖：實心方形圓角底，和其他純線條 icon 區隔 */
+.bottom-nav a.capture .nav-ic-wrap {
+  width: 38px; height: 32px; border-radius: 9px;
+  align-items: center; justify-content: center;
+  background: var(--record); color: #fff;
+}
+.bottom-nav a.capture .navico { width: 22px; height: 22px; }
 .bottom-nav a .navico { width: 28px; height: 28px; }
 .bottom-nav a.active { color: var(--accent); }
 .bottom-nav a .avatar {
@@ -368,6 +375,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .wz-steps span.done { background: var(--record); }
 .wz-body { padding: 14px; }
 .wz-field label { display: block; font-size: 0.8rem; color: var(--text-dim); margin: 14px 2px 6px; }
+.wz-field label.spaced { margin-top: 32px; }
 .wz-field input[type=text] { width: 100%; box-sizing: border-box; background: var(--surface); border: 1.5px solid #C3CBF7; border-radius: 12px; padding: 12px 14px; font-size: 0.95rem; color: var(--text); outline: none; }
 .wz-field input[type=text]:focus { border-color: var(--accent); }
 .wz-err { color: var(--danger); font-size: 0.82rem; margin: 8px 2px; }
@@ -377,11 +385,11 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 /* 取圖歷史紀錄 */
 .wz-hist .hrow {
   display: flex; align-items: center; gap: 10px; cursor: pointer;
-  padding: 10px 2px; border-bottom: 1px solid var(--border);
+  background: var(--surface-2); border-radius: 8px;
+  padding: 7px 11px; margin-bottom: 5px;
 }
-.wz-hist .hrow:last-child { border-bottom: none; }
+.wz-hist .hrow:active { background: #E3E9FF; }
 .wz-hist .ht { flex: 1; font-size: 0.85rem; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wz-hist .hm { font-size: 0.74rem; color: var(--text-dim); opacity: 0.75; white-space: nowrap; }
 .wz-hist .empty { padding: 22px 0; }
 /* 底部有固定按鈕的頁面，內容要留出空間 */
 .has-fixed-go { padding-bottom: calc(var(--nav-h) + 76px); }
