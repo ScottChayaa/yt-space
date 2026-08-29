@@ -298,12 +298,14 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .dp-month.dim { opacity: 0.45; }
 
 /* ───────── 查詢頁：兩種查詢法切換 ───────── */
-.qtabs { display: flex; gap: 6px; padding: var(--head-pad); }
+/* 分頁：選中的項目底部一條粗線 */
+.qtabs { display: flex; padding: var(--head-pad); border-bottom: 1px solid var(--border); }
 .qtabs button {
-  flex: 1; height: 41px; border-radius: 8px; font-size: 0.88rem;
-  background: var(--surface); border: 1px solid var(--border); color: var(--text-dim);
+  flex: 1; height: 41px; font-size: 0.92rem;
+  background: none; border: none; border-bottom: 3px solid transparent;
+  color: var(--text-dim); margin-bottom: -7px; padding: 0;
 }
-.qtabs button.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+.qtabs button.on { color: var(--accent); border-bottom-color: var(--accent); font-weight: 700; }
 
 /* 查詢欄位（時間、關鍵字）：整列滿版、方正圓角 */
 .qfield { padding: 10px 14px 0; }
