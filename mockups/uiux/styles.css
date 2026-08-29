@@ -347,7 +347,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .qgo:disabled { background: #C7CBE4; box-shadow: none; }
 
 /* ───────── 查詢結果頁 ───────── */
-.rs-head { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.rs-head { padding: 12px 14px; }
 .rs-cond { display: flex; flex-wrap: wrap; gap: 7px; }
 
 /* ═══════════ Shot 版新增（2026-08-28）═══════════ */
