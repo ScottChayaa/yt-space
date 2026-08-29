@@ -16,6 +16,7 @@
   --radius: 14px;
   --shadow: 0 1px 3px rgba(30,27,75,0.06), 0 1px 2px rgba(30,27,75,0.04);
   --shadow-lg: 0 8px 28px rgba(30,27,75,0.14);
+  --head-pad: calc(14px + env(safe-area-inset-top)) 14px 8px;   /* 頂部列統一起始位置 */
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -40,6 +41,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
 }
+.topbar.plain { min-height: 0; padding: var(--head-pad); }
 .topbar .back, .topbar .more {
   display: flex; background: none; border: none; padding: 6px; color: var(--text); border-radius: 8px;
 }
@@ -315,35 +317,42 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .dp-month.dim { opacity: 0.45; }
 
 /* ───────── 查詢頁：兩種查詢法切換 ───────── */
-.qtabs { display: flex; gap: 6px; padding: 10px 14px 4px; }
+.qtabs { display: flex; gap: 6px; padding: var(--head-pad); }
 .qtabs button {
-  flex: 1; padding: 9px 0; border-radius: 999px; font-size: 0.86rem;
+  flex: 1; padding: 9px 0; border-radius: 8px; font-size: 0.88rem;
   background: var(--surface); border: 1px solid var(--border); color: var(--text-dim);
 }
 .qtabs button.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
 
-.qstep { padding: 10px 14px 0; }
-.qstep .st { font-size: 0.76rem; color: var(--text-dim); margin: 0 2px 6px; }
-.qstep .st b { color: var(--accent); font-weight: 700; }
+/* 查詢欄位（時間、關鍵字）：整列滿版、方正圓角 */
+.qfield { padding: 10px 14px 0; }
+.date-trigger.block, .search.block { width: 100%; border-radius: 8px; }
 
-/* 標籤輪播：三列，橫向捲動 */
-.tag-carousel {
-  display: grid; grid-auto-flow: column; grid-template-rows: repeat(3, auto);
-  grid-auto-columns: max-content; gap: 8px;
-  overflow-x: auto; padding: 2px 14px 4px; scrollbar-width: none;
-  scroll-snap-type: x proximity;
+/* 標籤雲：自然寬度、換行往下排（不橫向捲動）*/
+.tag-cloud {
+  display: flex; flex-wrap: wrap; align-content: flex-start; gap: 8px;
+  padding: 12px 14px calc(var(--nav-h) + 76px);
 }
-.tag-carousel::-webkit-scrollbar { display: none; }
-.tag-carousel .chip { scroll-snap-align: start; }
+.tag-cloud .chip { border-radius: 8px; cursor: pointer; }
+.tag-cloud .empty { padding: 24px 0; }
 
-/* 確認查詢 */
+/* 確認查詢：固定在底部導覽列之上 */
 .qgo {
-  display: block; width: calc(100% - 28px); margin: 14px;
+  position: fixed; left: 14px; right: 14px; z-index: 28;
+  bottom: calc(var(--nav-h) + 10px + env(safe-area-inset-bottom));
   background: var(--accent); color: #fff; border: none;
-  padding: 13px; border-radius: 999px; font-size: 0.95rem; font-weight: 700;
+  padding: 13px; border-radius: 10px; font-size: 0.95rem; font-weight: 700;
   box-shadow: 0 4px 14px rgba(79,70,229,0.28);
 }
 .qgo:disabled { background: #C7CBE4; box-shadow: none; }
+
+/* ───────── 查詢結果頁 ───────── */
+.rs-head { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.rs-time { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.rs-time .chip { border-radius: 8px; background: var(--accent-weak); border-color: #C3CBF7; color: var(--accent); }
+.rs-cond { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
+.rs-cond .chip { border-radius: 8px; }
+.rs-count { font-size: 0.8rem; color: var(--text-dim); white-space: nowrap; }
 
 /* ═══════════ Shot 版新增（2026-08-28）═══════════ */
 

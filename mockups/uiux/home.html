@@ -9,8 +9,8 @@
 <body>
 <div class="app-main">
   <!-- 頂列：查詢時間（單擊選定年月 → 只顯示該月含以前的資料）-->
-  <div class="topbar">
-    <button class="date-trigger" id="dateTrigger">
+  <div class="topbar plain">
+    <button class="date-trigger block" id="dateTrigger">
       <span class="tlabel" id="dateLabel"></span>
     </button>
   </div>
@@ -75,7 +75,9 @@
     for (const g of groups) {
       g.tagsEl.innerHTML = [...g.tagMap.values()].map(t => APP.tagChip(t)).join('');
       g.tagsEl.querySelectorAll('.chip').forEach(chip =>
-        chip.addEventListener('click', () => location.href = `tags.html?tag=${encodeURIComponent(chip.dataset.name)}`));
+        chip.addEventListener('click', () =>
+          // 帶著「該標籤 + 這個月份」跳到共用的結果頁
+          location.href = `results.html?tags=${encodeURIComponent(chip.dataset.name)}&upto=${g.key}`));
     }
 
     APP.setupScrubber(groups);
