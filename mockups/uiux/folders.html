@@ -8,9 +8,8 @@
 </head>
 <body>
 <div class="app-main">
-  <div class="topbar"><span class="title">分類</span></div>
+  <div class="topbar"><span class="title">分類</span><button class="more accent" id="add" aria-label="新增資料夾"></button></div>
   <div class="fd-list" id="list"></div>
-  <button class="fd-add" id="add"></button>
   <div class="empty" id="empty" style="display:none">還沒有任何資料夾<br>建一個開始收藏吧</div>
 </div>
 
@@ -21,7 +20,7 @@
 <script src="app.js"></script>
 <script>
 document.getElementById('nav').innerHTML = APP.renderNav('folders');
-document.getElementById('add').innerHTML = APP.svg(APP.ICONS.folderPlus, 'ic') + ' 新增資料夾';
+document.getElementById('add').innerHTML = APP.svg(APP.ICONS.folderPlus, 'ic');
 
 const MAX_DEPTH = 5;
 

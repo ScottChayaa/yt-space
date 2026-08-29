@@ -36,17 +36,19 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .topbar {
   position: sticky; top: 0; z-index: 30;
   display: flex; align-items: center; gap: 10px;
-  min-height: 56px; padding: 6px 12px; box-sizing: border-box;
+  min-height: 0; padding: var(--head-pad); box-sizing: border-box;
   background: rgba(231,234,242,0.9);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
 }
-.topbar.plain { min-height: 0; padding: var(--head-pad); }
+/* 頂列內容統一高度＝首頁時間框的高度，各頁標題才會切齊 */
 .topbar .back, .topbar .more {
-  display: flex; background: none; border: none; padding: 6px; color: var(--text); border-radius: 8px;
+  display: flex; align-items: center; height: 41px;
+  background: none; border: none; padding: 0 6px; color: var(--text); border-radius: 8px;
 }
+.topbar .more.accent { color: var(--accent); }
 .topbar .more { color: var(--text-dim); margin-left: auto; }
-.topbar .title { font-size: 1rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.topbar .title { line-height: 41px; font-size: 1rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 
 /* 搜尋框（靛色底 + accent icon）*/
 .search {
