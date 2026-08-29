@@ -10,12 +10,11 @@
 <div class="app-main">
   <div class="topbar">
     <button class="back" id="backBtn"></button>
-    <span class="title">查詢結果</span>
+    <span class="title" id="title"></span>
   </div>
 
-  <!-- 查詢條件：標籤／關鍵字 ＋ 年月 -->
+  <!-- 查詢條件：標籤／關鍵字（時間顯示在頂列）-->
   <div class="rs-head">
-    <div class="rs-time"><span id="time"></span><span class="rs-count" id="count"></span></div>
     <div class="rs-cond" id="cond"></div>
   </div>
 
@@ -57,13 +56,12 @@
       .sort((a, b) => b.eventDate.localeCompare(a.eventDate));
   }
 
-  // 條件列：年月在上、標籤／關鍵字在下
+  // 頂列＝時間；條件列＝標籤／關鍵字
   const kindOf = name => {
     for (const c of REVIEWED) for (const t of c.tags) if (t.name === name) return t.kind;
     return 'topic';
   };
-  document.getElementById('time').innerHTML =
-    `<span class="chip time">${APP.svg(APP.ICONS.calendar, 'kico')}<span class="cn">${upTo ? APP.monthLabel(upTo) + ' 以前' : '全部日期'}</span></span>`;
+  document.getElementById('title').textContent = upTo ? APP.monthLabel(upTo) + ' 以前' : '全部日期';
   document.getElementById('cond').innerHTML = [
     ...tags.map(n => APP.tagChip({ name: n, kind: kindOf(n), source: 'human' })),
     q ? `<span class="chip">${APP.svg(APP.ICONS.search, 'kico')}<span class="cn">${q}</span></span>` : ''
@@ -80,7 +78,6 @@
       tile.onclick = () => APP.openLightbox(list, i, { onChange: render });
       tiles.appendChild(tile);
     });
-    document.getElementById('count').textContent = `${list.length} 筆`;
     document.getElementById('empty').style.display = list.length ? 'none' : 'block';
   }
   render();

@@ -333,7 +333,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
   display: flex; flex-wrap: wrap; align-content: flex-start; gap: 8px;
   padding: 12px 14px calc(var(--nav-h) + 76px);
 }
-.tag-cloud .chip { border-radius: 8px; cursor: pointer; }
+.tag-cloud .chip, .month-tags .chip, .rs-cond .chip { border-radius: 8px; cursor: pointer; }
 .tag-cloud .empty { padding: 24px 0; }
 
 /* 確認查詢：固定在底部導覽列之上 */
@@ -348,11 +348,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 
 /* ───────── 查詢結果頁 ───────── */
 .rs-head { padding: 12px 14px; border-bottom: 1px solid var(--border); }
-.rs-time { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.rs-time .chip { border-radius: 8px; background: var(--accent-weak); border-color: #C3CBF7; color: var(--accent); }
-.rs-cond { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
-.rs-cond .chip { border-radius: 8px; }
-.rs-count { font-size: 0.8rem; color: var(--text-dim); white-space: nowrap; }
+.rs-cond { display: flex; flex-wrap: wrap; gap: 7px; }
 
 /* ═══════════ Shot 版新增（2026-08-28）═══════════ */
 
