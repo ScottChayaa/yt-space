@@ -350,8 +350,10 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .lb .lb-info .d { font-size: 0.95rem; margin-bottom: 6px; }
 .lb .lb-info .d.dim { color: rgba(255,255,255,0.45); font-style: italic; }
 .lb .lb-info .chips { margin-bottom: 6px; }
-.lb .lb-info .chip { background: rgba(255,255,255,0.12); border-color: transparent; color: #fff; }
-.lb .lb-info .meta { font-size: 0.76rem; color: rgba(255,255,255,0.6); }
+.lb .lb-info .chip { background: rgba(255,255,255,0.12); border-color: transparent; color: #fff; border-radius: 8px; }
+.lb .lb-info .meta { display: flex; align-items: baseline; gap: 8px; font-size: 0.76rem; color: rgba(255,255,255,0.6); }
+.lb .lb-info .meta .vt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb .lb-info .meta .at { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
 .lb .lb-actions { display: flex; gap: 8px; padding: 12px 14px calc(14px + env(safe-area-inset-bottom)); flex-wrap: wrap; }
 .lb .lb-actions button { flex: 1 1 28%; display: flex; align-items: center; justify-content: center; gap: 6px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.16); color: #fff; border-radius: 10px; padding: 10px 6px; font-size: 0.8rem; white-space: nowrap; }
 .lb .lb-actions button.primary { background: var(--accent); border-color: var(--accent); }

@@ -291,7 +291,7 @@ function openLightbox(list, idx, opts = {}) {
     lb.innerHTML = `
       <div class="lb-top">
         <button id="lb-close">${svg(ICONS.close, 'ic')}</button>
-        <span style="font-size:.8rem;color:rgba(255,255,255,.55)">${i + 1} / ${list.length}</span>
+        <span style="font-size:.8rem;color:rgba(255,255,255,.75)">${M.fmtDateLabel(s.eventDate)}</span>
         <span style="width:32px"></span>
       </div>
       <div class="lb-stage" id="lb-stage">
@@ -302,7 +302,7 @@ function openLightbox(list, idx, opts = {}) {
       <div class="lb-info">
         <div class="d ${s.summary ? '' : 'dim'}">${s.summary || '（沒有描述，之後可由 AI 補）'}</div>
         <div class="chips">${placeChip}${s.tags.map(t => tagChip(t)).join('')}</div>
-        <div class="meta">${M.fmtDateLabel(s.eventDate)} ・ ${M.fmtTime(s.start)} ・ 《${v.title.slice(0, 22)}…》</div>
+        <div class="meta"><span class="vt">《${v.title.slice(0, 22)}…》</span><span class="at">${M.fmtTime(s.start)}</span></div>
       </div>
       <div class="lb-actions">
         <button class="primary" id="lb-play">${svg(ICONS.play, 'ic')} 影片播放</button>
