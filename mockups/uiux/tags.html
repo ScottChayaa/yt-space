@@ -75,8 +75,9 @@
     for (const k of [...selected]) if (!keys.has(k)) selected.delete(k);
 
     const el = document.getElementById('tagCloud');
+    // 仍依張數排序，但不顯示數字（數字變大會把 chip 撐開）
     el.innerHTML = avail.map(f =>
-      APP.tagChip(f, { count: f.count, selected: selected.has(M.facetKey(f)), key: M.facetKey(f) })).join('')
+      APP.tagChip(f, { selected: selected.has(M.facetKey(f)), key: M.facetKey(f) })).join('')
       || '<span class="empty">此時間以前沒有標籤</span>';
     el.querySelectorAll('.chip').forEach(chip => chip.onclick = () => {
       const k = chip.dataset.key, on = selected.has(k);

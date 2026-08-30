@@ -288,7 +288,7 @@ function tagEditor(host, tags, onChange) {
       </div>
       ${open ? `<div class="te-pick">
         <div class="te-pool">${pool.length
-          ? pool.map(t => `<span class="chip mini" data-add="${t.name}" data-kind="${t.kind}">${kindSvg(t.kind)}<span class="cn">${t.name}</span><span class="n">${t.count}</span></span>`).join('')
+          ? pool.map(t => `<span class="chip mini" data-add="${t.name}" data-kind="${t.kind}">${kindSvg(t.kind)}<span class="cn">${t.name}</span></span>`).join('')
           : '<span class="te-hint">既有標籤都加過了</span>'}</div>
         <div class="te-new">
           <input type="text" class="te-name" placeholder="新標籤">
