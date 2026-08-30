@@ -220,13 +220,36 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .countdown .cancel.done { opacity: 0.45; }
 
 /* ───────── 設定 ───────── */
-.account { display: flex; align-items: center; gap: 12px; padding: 18px 14px; background: var(--surface); border-bottom: 1px solid var(--border); }
-.account .avatar-lg { width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #4F46E5, #8B5CF6); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; font-weight: 700; }
-.account .who .name { font-weight: 700; }
-.account .who .mail { font-size: 0.78rem; color: var(--text-dim); }
+.account-hero {
+  background: linear-gradient(135deg, var(--accent), #8B5CF6);
+  padding: calc(14px + env(safe-area-inset-top)) 0 34px;
+}
+.account { display: flex; align-items: center; gap: 12px; padding: 18px 14px; }
+.account .avatar-lg { width: 48px; height: 48px; border-radius: 50%; background: rgba(255,255,255,0.22); border: 2px solid rgba(255,255,255,0.5); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; font-weight: 700; }
+.account .who .name { font-weight: 700; color: #fff; }
+.account .who .mail { font-size: 0.78rem; color: rgba(255,255,255,0.78); }
+.chip.ghost-on-accent { background: transparent; border-color: rgba(255,255,255,0.55); color: #fff; }
+
+/* 三格統計：負 margin 讓卡片跨在 hero 下緣 */
+.stat-card {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  margin: -26px 14px 12px; padding: 14px 0;
+  background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-lg);
+}
+.stat-item { display: flex; flex-direction: column; align-items: center; gap: 4px; position: relative; }
+.stat-item + .stat-item::before { content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 1px; background: var(--border); }
+.stat-ico { width: 34px; height: 34px; border-radius: 50%; background: var(--accent-weak); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 2px; }
+.stat-n { font-size: 1.25rem; font-weight: 700; line-height: 1.1; }
+.stat-l { font-size: 0.72rem; color: var(--text-dim); }
+.stat-item:active { opacity: 0.6; }
 .set-group { padding: 6px 0; border-bottom: 1px solid var(--border); background: var(--surface); }
 .set-group .gt { font-size: 0.72rem; color: var(--text-dim); padding: 10px 14px 4px; text-transform: uppercase; letter-spacing: 0.05em; }
 .set-row { display: flex; align-items: center; justify-content: space-between; padding: 13px 14px; }
+/* 設定主選單：項目間以底線區隔，線貫穿整個寬度 */
+.set-group.split .set-row + .set-row { position: relative; }
+.set-group.split .set-row + .set-row::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: var(--border);
+}
 .set-row .l { font-size: 0.92rem; }
 .set-row .sub { font-size: 0.76rem; color: var(--text-dim); margin-top: 2px; }
 .set-row .sel { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font-size: 0.85rem; color: var(--text); font-family: inherit; }

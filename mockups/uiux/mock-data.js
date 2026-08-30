@@ -47,8 +47,8 @@ const VIDEOS = {
   '7TIoqV_J8zg': { id: '7TIoqV_J8zg', channel: 'okge', title: '探索美國第4集：佛羅里達找到史前巨齒鯊的大牙齒！', duration: 1388 }
 };
 
-// 15 個 clip；status: reviewed 進首頁/檢索，inbox/analyzing 進代辦清單
-// countdownSec 僅代辦項目使用（剩餘秒數）
+// 13 個 clip，全部為 reviewed（已整理），會進首頁／檢索。
+// 目前沒有其他 status；未整理／代辦清單這條流程尚未設計，勿臆造。
 const CLIPS = [
   // ── OK哥 Ea8ICLXTDaU：一支影片 3 個 clip（詳細頁主角）──
   { id: 'c01', videoId: 'Ea8ICLXTDaU', start: 132, end: 168, eventDate: '2026-08-03', status: 'reviewed',
@@ -95,24 +95,7 @@ const CLIPS = [
     summary: '橫穿秦嶺鰲太線，雲海壯闊', note: '走了4小時',
     tags: [{ name: '秦嶺', kind: 'place', source: 'human' }, { name: '登山', kind: 'topic', source: 'human' }, { name: '雲海', kind: 'other', source: 'ai' }] },
 
-  // ── 代辦清單（尚未處理，倒數中）──
-  { id: 'c14', videoId: 'mdOEkhlmKsM', start: 180, end: 216, eventDate: '2025-10-02', status: 'inbox',
-    summary: '', note: '歐洲高考考中文這段', countdownSec: 168,
-    tags: [] },
-  { id: 'c15', videoId: 'OVmxey333G0', start: 240, end: 280, eventDate: '2025-08-16', status: 'analyzing',
-    summary: '', note: '海豹組團跟蹤搶海貨', countdownSec: 0,
-    tags: [] }
 ];
-// c15 影片補進 VIDEOS（OK哥 洛杉磯打魚）
-VIDEOS['OVmxey333G0'] = { id: 'OVmxey333G0', channel: 'okge', title: '探索美國第3集：在洛杉磯打魚太崩潰，海豹組團跟蹤搶海貨！', duration: 1361 };
-
-// 供代辦清單另外再放 2 筆，湊出「批次待處理」感
-CLIPS.push(
-  { id: 'c16', videoId: 'Pe226YsYVWk', start: 640, end: 680, eventDate: '2026-07-21', status: 'inbox',
-    summary: '', note: '210元深夜大排檔那攤', countdownSec: 92, tags: [] },
-  { id: 'c17', videoId: '7TIoqV_J8zg', start: 720, end: 760, eventDate: '2026-05-09', status: 'inbox',
-    summary: '', note: '抓入侵物種哥斯拉蜥蜴', countdownSec: 143, tags: [] }
-);
 
 // ── 輔助函式 ──
 function thumbUrl(videoId) {
@@ -204,6 +187,17 @@ const DATE_SRC = { c01: 'recorded', c05: 'recorded', c11: 'recorded' };
 for (const c of CLIPS) c.dateSrc = DATE_SRC[c.id] || 'published';
 
 // 既有地點（去重，依使用次數）→ 編輯時給建議，等同 SELECT DISTINCT place
+// 設定頁上方的三格統計。
+// 「本月」以 eventDate 的年月比對，與首頁的月份分組同一套口徑。
+function stats() {
+  const ym = new Date().toISOString().slice(0, 7);
+  return {
+    shots: CLIPS.length,
+    thisMonth: CLIPS.filter(c => c.eventDate.slice(0, 7) === ym).length,
+    videos: new Set(CLIPS.map(c => c.videoId)).size
+  };
+}
+
 function allPlaces() {
   const map = new Map();
   for (const c of CLIPS) {
@@ -263,6 +257,6 @@ function removeClip(clipId) {
 
 Object.assign(window.MOCK, {
   FOLDERS, FOLDER_SHOTS, folderChildren, folderById, folderCount,
-  folderDepth, shotFolders, addFolder, removeClip, allPlaces,
+  folderDepth, shotFolders, addFolder, removeClip, allPlaces, stats,
   shotFacets, facetKey, allFacets, matchesFacet
 });
