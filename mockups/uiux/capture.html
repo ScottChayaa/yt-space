@@ -11,7 +11,7 @@
   <div class="topbar">
     <span class="title center" id="wzTitle">取圖</span>
   </div>
-  <div class="wz-steps" id="steps"><span></span><span></span><span></span><span></span></div>
+  <div class="wz-steps" id="steps"><span></span><span></span><span></span></div>
   <div id="stage"></div>
 </div>
 
@@ -300,16 +300,15 @@ function renderStep3() {
       <button id="qAll">全選</button><button id="qNone">全不選</button>
       <button id="qInv">反選</button><button id="qTodo">未填的</button>
     </div>
-    <div class="wz-grid" id="grid3"></div>
+    <div class="wz-grid step3" id="grid3"></div>
     <div class="meta-drawer" id="drawer" style="display:none">
-      <div class="dh" id="dTitle"></div>
+      <div class="dh"><span id="dTitle"></span><button class="apply" id="dApply">套用</button></div>
       <div class="field"><label>時間（事件發生日）<span class="warn-inline">⚠ 預設帶入 YT 日期，可能不是拍攝日</span></label>
         <input id="dDate" type="date"></div>
       <div class="field"><label>地點</label><input id="dPlace" type="text" placeholder="例：宜蘭">
         <div class="sug" id="dPlaces"></div></div>
       <div class="field"><label>標籤</label><div class="tag-editor" id="dTags"></div></div>
       <div class="field"><label>描述</label><textarea id="dDesc" rows="2" placeholder="留空，之後 AI 補"></textarea></div>
-      <button class="apply" id="dApply"></button>
     </div>
     <div class="wz-foot">
       <span class="n" id="cnt3"></span>
@@ -331,7 +330,7 @@ function renderStep3() {
     drawer.style.display = '';
     const list = [...sel].map(i => W.items[i]);
     document.getElementById('dTitle').textContent =
-      sel.size === 1 ? `套用到已選的 1 張 ・ ${M.fmtTime(list[0].t)}` : `套用到已選的 ${sel.size} 張`;
+      sel.size === 1 ? `已選 1 張 ・ ${M.fmtTime(list[0].t)}` : `已選 ${sel.size} 張`;
     // 標籤：各張一致就直接編，不一致先顯示〈多個值〉
     const tagVals = new Set(list.map(x => x.tags));
     const host = document.getElementById('dTags');
@@ -347,7 +346,6 @@ function renderStep3() {
       else { el.value = ''; el.classList.add('mix'); el.placeholder = '〈多個值〉'; }
       dirty[key] = false;
     }
-    document.getElementById('dApply').textContent = `套用到這 ${sel.size} 張`;
   }
 
   function renderGrid3() {
@@ -355,9 +353,10 @@ function renderStep3() {
     grid.innerHTML = '';
     W.items.forEach((it, i) => {
       const el = document.createElement('div');
-      el.className = ['wz-cell', sel.has(i) ? 'sel' : '', it.applied && !sel.has(i) ? 'done-dot' : ''].join(' ').trim();
+      // 已套用（右上綠勾）與勾選中（左上藍勾）分屬兩個角落，可以同時存在
+      el.className = ['wz-cell', sel.has(i) ? 'sel' : '', it.applied ? 'done' : ''].join(' ').trim();   // 已套用＝右上綠勾，勾選中＝左上藍勾，兩者共存
       el.style = it.url ? `background-image:url('${it.url}');background-size:cover` : M.thumbStyle(W.key, it.t);
-      el.innerHTML = `<span class="tm">${M.fmtTime(it.t)}</span>`;
+      el.innerHTML = `<span class="tm">${M.fmtTime(it.t)}</span>` + (it.applied ? '<span class="done-mark"></span>' : '');
       el.onclick = () => { sel.has(i) ? sel.delete(i) : sel.add(i); renderGrid3(); };
       grid.appendChild(el);
     });
