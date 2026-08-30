@@ -491,6 +491,8 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .wz-foot .n { font-size: 0.85rem; color: var(--text-dim); }
 .wz-foot .go { background: var(--record); color: #fff; border: none; padding: 8px 16px; border-radius: 9px; font-size: 0.85rem; font-weight: 700; }
 .wz-foot .go:disabled { opacity: 0.4; }
+/* 還有沒填資料時，【完成】退成次要樣式，主要動作留給抽屜裡的【套用】*/
+.wz-foot .go.ghost { background: none; color: var(--text-dim); border: 1px solid var(--border); font-weight: 400; }
 .wz-toast { position: fixed; left: 14px; right: 14px; bottom: calc(var(--nav-h) + 66px); z-index: 45; background: rgba(30,27,75,0.94); color: #fff; padding: 11px 16px; border-radius: 12px; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow-lg); }
 .wz-toast button { background: none; border: none; color: #7DD3FC; font-weight: 700; font-size: 0.85rem; }
 .wz-tip { margin: 8px 12px; padding: 9px 12px; background: var(--accent-weak); border: 1px solid #C3CBF7; border-radius: 10px; font-size: 0.8rem; color: var(--accent); }
@@ -503,7 +505,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .meta-drawer .field input, .meta-drawer .field textarea { width: 100%; box-sizing: border-box; background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; font-size: 0.88rem; color: var(--text); outline: none; font-family: inherit; }
 .meta-drawer .field .te-new input, .meta-drawer .field .te-new select { width: auto; }
 .meta-drawer .field .mix::placeholder { color: #8B5CF6; font-style: italic; }
-.meta-drawer .apply { flex: 0 0 auto; background: var(--record); color: #fff; border: none; padding: 7px 18px; border-radius: 9px; font-size: 0.85rem; font-weight: 700; }
+.meta-drawer .apply { flex: 0 0 auto; background: var(--record); color: #fff; border: none; padding: 8px 20px; border-radius: 9px; font-size: 0.88rem; font-weight: 700; box-shadow: 0 3px 10px rgba(225,29,72,0.3); }
 .meta-drawer .apply:disabled { opacity: 0.4; }
 .warn-inline { font-size: 0.74rem; color: var(--warn); margin-top: 3px; }
 

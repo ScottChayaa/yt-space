@@ -330,7 +330,7 @@ function renderStep3() {
     drawer.style.display = '';
     const list = [...sel].map(i => W.items[i]);
     document.getElementById('dTitle').textContent =
-      sel.size === 1 ? `已選 1 張 ・ ${M.fmtTime(list[0].t)}` : `已選 ${sel.size} 張`;
+      sel.size === 1 ? `縮圖資訊：已選 1 張 ・ ${M.fmtTime(list[0].t)}` : `縮圖資訊：已選 ${sel.size} 張`;
     // 標籤：各張一致就直接編，不一致先顯示〈多個值〉
     const tagVals = new Set(list.map(x => x.tags));
     const host = document.getElementById('dTags');
@@ -360,8 +360,11 @@ function renderStep3() {
       el.onclick = () => { sel.has(i) ? sel.delete(i) : sel.add(i); renderGrid3(); };
       grid.appendChild(el);
     });
+    // 還有沒填的 → 【完成】維持次要樣式，讓【套用】看起來才是現在該按的那顆
+    const todo = W.items.filter(x => !x.applied).length;
     document.getElementById('cnt3').textContent =
-      `${W.items.length} 張 ・ ${W.items.filter(x => x.applied).length} 已完成`;
+      todo ? `還有 ${todo} 張沒填資料` : `${W.items.length} 張都填好了`;
+    document.getElementById('finish').classList.toggle('ghost', todo > 0);
     fillDrawer();
   }
 
