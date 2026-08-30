@@ -145,7 +145,7 @@ function renderStep2() {
       <button id="tAll" ${noSB ? 'disabled' : ''}>${APP.svg(APP.ICONS.check, 'ic')} 全部選取</button>
       <button id="tSim" ${noSB ? 'disabled' : ''}>${APP.svg(APP.ICONS.filter, 'ic')} 過濾相似</button>
       <button id="tManual">${APP.svg(APP.ICONS.imagePlus, 'ic')} 手動補圖</button>
-      <button id="tOnly" class="${W.onlySel ? 'on' : ''}">只看已選<span id="tOnlyN"></span></button>
+      <button id="tOnly" class="${W.onlySel ? 'on' : ''}">${APP.svg(APP.ICONS.eye, 'ic')} 只看已選<span id="tOnlyN"></span></button>
     </div>
     <div id="tip1" class="wz-tip" style="display:none">點一下收藏 ・ 長按可跳到那一段看看</div>
     <div class="wz-grid" id="grid"></div>
@@ -183,7 +183,7 @@ function renderStep2() {
     const grid = document.getElementById('grid');
     grid.innerHTML = '';
     for (const f of W.frames) {
-      if (W.onlySel && !W.selected.has(f.t) && !W.dropped.has(f.t)) continue;
+      if (W.onlySel && !W.selected.has(f.t)) continue;   // 被過濾掉的等同未選，不再另外顯示
       const el = document.createElement('div');
       el.className = ['wz-cell',
         W.selected.has(f.t) ? 'sel' : '',
