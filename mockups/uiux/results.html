@@ -36,6 +36,10 @@
   /* 查詢條件全部來自 URL —— 這頁不持有狀態，任何頁面都能連過來 */
   const P = new URLSearchParams(location.search);
   const tags = (P.get('tags') || '').split(',').map(s => s.trim()).filter(Boolean);
+  const places = (P.get('places') || '').split(',').map(s => s.trim()).filter(Boolean);
+  // 條件＝地點與標籤的聯集（選了就查，使用者不必知道哪個是欄位、哪個是標籤）
+  const facets = [...places.map(name => ({ name, kind: 'place', facet: 'place' })),
+                  ...tags.map(name => ({ name, facet: 'tag' }))];
   const q = (P.get('q') || '').trim();
   const upTo = P.get('upto') || '';        // '' = 全部日期
 
@@ -44,14 +48,14 @@
 
   function matchesText(c, text) {
     const v = M.videoOf(c);
-    const hay = [c.summary, c.note, v.title, M.channelOf(c), ...c.tags.map(t => t.name)].join(' ').toLowerCase();
+    const hay = [c.summary, c.note, c.place, v.title, M.channelOf(c), ...c.tags.map(t => t.name)].join(' ').toLowerCase();
     return text.toLowerCase().split(/\s+/).filter(Boolean).some(w => hay.includes(w));
   }
 
   function currentList() {
     return REVIEWED
       .filter(c => inRange(c)
-        && (!tags.length || c.tags.some(t => tags.includes(t.name)))
+        && (!facets.length || facets.some(f => M.matchesFacet(c, f)))
         && (!q || matchesText(c, q)))
       .sort((a, b) => b.eventDate.localeCompare(a.eventDate));
   }
@@ -63,7 +67,7 @@
   };
   document.getElementById('title').textContent = upTo ? APP.monthLabel(upTo) + ' 以前' : '全部日期';
   document.getElementById('cond').innerHTML = [
-    ...tags.map(n => APP.tagChip({ name: n, kind: kindOf(n), source: 'human' })),
+    ...facets.map(f => APP.tagChip({ name: f.name, kind: f.kind || kindOf(f.name), source: 'human' })),
     q ? `<span class="chip">${APP.svg(APP.ICONS.search, 'kico')}<span class="cn">${q}</span></span>` : ''
   ].join('');
 

@@ -65,15 +65,17 @@
       const idx = flat.length; flat.push(c);
       tile.addEventListener('click', () => APP.openLightbox(flat, idx, { onChange: render }));
       container.appendChild(tile);
-      for (const t of c.tags) if (!group.tagMap.has(t.name)) group.tagMap.set(t.name, t);
+      for (const f of M.shotFacets(c)) if (!group.tagMap.has(M.facetKey(f))) group.tagMap.set(M.facetKey(f), f);
     }
 
     for (const g of groups) {
-      g.tagsEl.innerHTML = [...g.tagMap.values()].map(t => APP.tagChip(t)).join('');
+      g.tagsEl.innerHTML = [...g.tagMap.values()].map(f => APP.tagChip(f, { key: M.facetKey(f) })).join('');
       g.tagsEl.querySelectorAll('.chip').forEach(chip =>
-        chip.addEventListener('click', () =>
-          // 帶著「該標籤 + 這個月份」跳到共用的結果頁
-          location.href = `results.html?tags=${encodeURIComponent(chip.dataset.name)}&upto=${g.key}`));
+        chip.addEventListener('click', () => {
+          // 帶著「該條件 + 這個月份」跳到共用的結果頁（地點與標籤查不同欄位）
+          const [facet, name] = [chip.dataset.key.split(':')[0], chip.dataset.name];
+          location.href = `results.html?${facet === 'place' ? 'places' : 'tags'}=${encodeURIComponent(name)}&upto=${g.key}`;
+        }));
     }
   }
 

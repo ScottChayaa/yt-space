@@ -231,6 +231,19 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .set-row .sub { font-size: 0.76rem; color: var(--text-dim); margin-top: 2px; }
 .set-row .sel { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font-size: 0.85rem; color: var(--text); font-family: inherit; }
 .set-row .val { color: var(--text-dim); font-size: 0.88rem; }
+/* 設定首頁的功能入口列（Android 式：圖示｜名稱＋現值｜›）*/
+.set-row.link { gap: 13px; text-decoration: none; color: var(--text); cursor: pointer; }
+.set-row.link > div { flex: 1; min-width: 0; }
+.set-row.link .sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set-row.link:active { background: var(--surface-2); }
+.set-row .ic.dim { color: var(--text-dim); flex: 0 0 auto; }
+.set-row .ic.arrow { width: 18px; height: 18px; }
+.set-row .kico { width: 20px; height: 20px; flex: 0 0 auto; }
+.set-row.pick { gap: 13px; }
+.set-row.pick > div { flex: 1; }
+.set-row.pick input { width: 19px; height: 19px; accent-color: var(--accent); }
+.set-note { font-size: 0.76rem; color: var(--text-dim); padding: 12px 16px; line-height: 1.6; }
+.sheet .sel.wide { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px; font-size: 0.9rem; color: var(--text); font-family: inherit; }
 .stepper { display: flex; align-items: center; gap: 10px; }
 .stepper button { width: 30px; height: 30px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border); font-size: 1.1rem; color: var(--accent); }
 .stepper .v { min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; }

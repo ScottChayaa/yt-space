@@ -68,25 +68,19 @@
   document.getElementById('tabTag').onclick = () => setMode('tag');
   document.getElementById('tabText').onclick = () => setMode('text');
 
-  /* ── 標籤雲：自然寬度、換行往下排（不橫向捲動）── */
+  /* ── 標籤雲：地點與標籤混排（規格第六節），自然寬度、換行往下排 ── */
   function renderTags() {
-    const map = new Map();
-    for (const c of REVIEWED) {
-      if (!upTo(c, tagUpTo)) continue;
-      for (const t of c.tags) {
-        if (!map.has(t.name)) map.set(t.name, { name: t.name, kind: t.kind, source: 'human', count: 0 });
-        map.get(t.name).count++;
-      }
-    }
-    const avail = [...map.values()].sort((a, b) => b.count - a.count);
-    for (const n of [...selected]) if (!map.has(n)) selected.delete(n);
+    const avail = M.allFacets(REVIEWED.filter(c => upTo(c, tagUpTo)));
+    const keys = new Set(avail.map(M.facetKey));
+    for (const k of [...selected]) if (!keys.has(k)) selected.delete(k);
 
     const el = document.getElementById('tagCloud');
-    el.innerHTML = avail.map(t => APP.tagChip(t, { count: t.count, selected: selected.has(t.name) })).join('')
+    el.innerHTML = avail.map(f =>
+      APP.tagChip(f, { count: f.count, selected: selected.has(M.facetKey(f)), key: M.facetKey(f) })).join('')
       || '<span class="empty">此時間以前沒有標籤</span>';
     el.querySelectorAll('.chip').forEach(chip => chip.onclick = () => {
-      const n = chip.dataset.name, on = selected.has(n);
-      on ? selected.delete(n) : selected.add(n);
+      const k = chip.dataset.key, on = selected.has(k);
+      on ? selected.delete(k) : selected.add(k);
       chip.classList.toggle('sel', !on);
       syncGo();
     });
@@ -114,7 +108,14 @@
   /* ── 送出：導向獨立的結果頁（條件全帶在 URL）── */
   document.getElementById('go').onclick = () => {
     const p = new URLSearchParams();
-    if (mode === 'tag') { p.set('tags', [...selected].join(',')); if (tagUpTo) p.set('upto', tagUpTo); }
+    if (mode === 'tag') {
+      // 地點與標籤查的是不同欄位，因此分成兩個參數帶過去
+      const pick = f => [...selected].filter(k => k.startsWith(f + ':')).map(k => k.slice(f.length + 1));
+      const places = pick('place'), tags = pick('tag');
+      if (tags.length) p.set('tags', tags.join(','));
+      if (places.length) p.set('places', places.join(','));
+      if (tagUpTo) p.set('upto', tagUpTo);
+    }
     else { p.set('q', document.getElementById('textInput').value.trim()); if (textUpTo) p.set('upto', textUpTo); }
     location.href = 'results.html?' + p.toString();
   };

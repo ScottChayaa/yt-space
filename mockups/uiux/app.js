@@ -52,7 +52,8 @@ function tagChip(tag, opts = {}) {
   const icon = opts.plainHash
     ? `<svg class="kico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${KIND.topic.icon}</svg>`
     : kindSvg(tag.kind);
-  return `<span class="${cls}" data-name="${tag.name}">${icon}<span class="cn">${tag.name}</span>${count}</span>`;
+  const key = opts.key ? ` data-key="${opts.key}"` : '';
+  return `<span class="${cls}" data-name="${tag.name}"${key}>${icon}<span class="cn">${tag.name}</span>${count}</span>`;
 }
 
 /* ───────── 底部導覽（5 項，SVG icon）───────── */
@@ -62,7 +63,7 @@ function renderNav(active) {
     { id: 'tags', href: 'tags.html', ico: 'search', label: '查詢' },
     { id: 'capture', href: 'capture.html', ico: 'plus', label: '取圖', cls: 'capture' },
     { id: 'folders', href: 'folders.html', ico: 'folder', label: '分類' },
-    { id: 'account', href: 'account.html', avatar: 'S', label: '帳號' }
+    { id: 'account', href: 'account.html', avatar: 'S', label: '設定' }
   ];
   return `<nav class="bottom-nav">${items.map(it => {
     const inner = it.avatar ? `<span class="avatar">${it.avatar}</span>` : svg(ICONS[it.ico], 'navico');
@@ -86,10 +87,10 @@ function bindPress(el, { onTap, onHold, delay = 450 }) {
   el.addEventListener('pointerleave', cancel);
 }
 
-/* 首頁 tile 用：取 top 2 標籤（human 優先，place/person 優先）*/
+/* 首頁 tile 用：取 top 2 標籤（地點優先，其次 human）*/
 function top2Tags(clip) {
   const order = { place: 0, person: 1, topic: 2, pet: 3, other: 4 };
-  return [...clip.tags]
+  return [...M.shotFacets(clip)]
     .sort((a, b) => (a.source === 'ai') - (b.source === 'ai') || order[a.kind] - order[b.kind])
     .slice(0, 2);
 }
@@ -413,8 +414,7 @@ function openLightbox(list, idx, opts = {}) {
     if (!list.length) return close();
     i = Math.max(0, Math.min(i, list.length - 1));
     const s = list[i], v = M.videoOf(s);
-    const placeChip = s.place
-      ? `<span class="chip mini">${kindSvg('place')}<span class="cn">${s.place}</span></span>` : '';
+    const facetChips = M.shotFacets(s).map(f => tagChip(f)).join('');
     lb.innerHTML = `
       <div class="lb-top">
         <button id="lb-close">${svg(ICONS.close, 'ic')}</button>
@@ -430,7 +430,7 @@ function openLightbox(list, idx, opts = {}) {
       </div>
       <div class="lb-info">
         <div class="d ${s.summary ? '' : 'dim'}">${s.summary || '（沒有描述，之後可由 AI 補）'}</div>
-        <div class="chips">${placeChip}${s.tags.map(t => tagChip(t)).join('')}</div>
+        <div class="chips">${facetChips}</div>
         <div class="meta"><span class="vt">《${v.title.slice(0, 22)}…》</span><span class="at">${M.fmtTime(s.start)}</span></div>
       </div>
       <div class="lb-actions">

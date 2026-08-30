@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>yt-space · 設定細項</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app-main">
+  <div class="topbar">
+    <button class="back" id="backBtn"></button>
+    <span class="title center" id="title"></span>
+    <span class="spacer"></span>
+  </div>
+  <div id="body"></div>
+</div>
+
+<div id="nav"></div>
+
+<script src="/shared/storyboard.js"></script>
+<script src="mock-data.js"></script>
+<script src="app.js"></script>
+<script>
+  document.getElementById('nav').innerHTML = APP.renderNav('account');
+  document.getElementById('backBtn').innerHTML = APP.svg(APP.ICONS.back, 'ic');
+  document.getElementById('backBtn').onclick = () => history.length > 1 ? history.back() : location.href = 'account.html';
+
+  const k = new URLSearchParams(location.search).get('k') || 'capture';
+  const body = document.getElementById('body');
+  const TITLES = { capture: '取圖', tags: '標籤管理', ai: 'AI 分析', thumbs: '縮圖服務' };
+  document.getElementById('title').textContent = TITLES[k] || '設定';
+
+  const PAGES = { capture: renderCapture, tags: renderTags, ai: renderAI, thumbs: renderThumbs };
+  (PAGES[k] || renderCapture)();
+
+  /* ── 取圖 ── */
+  function renderCapture() {
+    const cur = localStorage.getItem('ytspace_sim_strength') || 'm';
+    const opts = [
+      ['h', '高', '砍得最多；連續的相似畫面幾乎只留一張'],
+      ['m', '中', '預設值；多數影片的平衡點'],
+      ['l', '低', '只砍幾乎一模一樣的，寧可留多']
+    ];
+    body.innerHTML = `
+      <div class="set-group">
+        <div class="gt">過濾相似強度</div>
+        ${opts.map(([v, n, d]) => `
+          <label class="set-row pick"><div><div class="l">${n}</div><div class="sub">${d}</div></div>
+            <input type="radio" name="sim" value="${v}" ${v === cur ? 'checked' : ''}></label>`).join('')}
+      </div>
+      <div class="set-note">取圖第二步按【過濾相似】時採用這個強度。</div>`;
+    body.querySelectorAll('input[name=sim]').forEach(r => r.onchange = () => {
+      localStorage.setItem('ytspace_sim_strength', r.value);
+      APP.toast('已改為強度：' + r.parentElement.querySelector('.l').textContent);
+    });
+  }
+
+  /* ── 標籤管理：點一張標籤才做改名／別名／刪除 ── */
+  function renderTags() {
+    const tags = M.allTags();
+    body.innerHTML = `
+      <div class="set-group">
+        <div class="gt">全部標籤（${tags.length}）</div>
+        <div id="tagRows"></div>
+      </div>
+      <div class="set-note">點一個標籤可以改名、編輯別名或刪除；刪除只解除關聯，圖不會被刪。</div>`;
+    const rows = document.getElementById('tagRows');
+    rows.innerHTML = tags.map(t => `
+      <div class="set-row link" data-n="${t.name}">
+        ${APP.kindSvg(t.kind)}
+        <div><div class="l">${t.name}</div><div class="sub">${APP.KIND[t.kind].label} ・ ${t.count} 張</div></div>
+        ${APP.svg(APP.ICONS.chevronRight, 'ic dim arrow')}
+      </div>`).join('');
+    rows.querySelectorAll('[data-n]').forEach(row => row.onclick = () => openTag(row.dataset.n));
+  }
+
+  function openTag(name) {
+    const tag = M.allTags().find(t => t.name === name);
+    const sh = APP.openPanel(`
+      <div class="srow"><span class="trange">${name}</span>
+        <button class="close" onclick="closeSheet()">${APP.svg(APP.ICONS.close, 'ic')}</button></div>
+      <div class="field"><label>名稱</label><input id="tgName" type="text" value="${name}"></div>
+      <div class="field"><label>分類</label>
+        <select id="tgKind" class="sel wide">${Object.entries(APP.KIND).filter(([x]) => x !== 'place')
+          .map(([x, v]) => `<option value="${x}" ${x === tag.kind ? 'selected' : ''}>${v.label}</option>`).join('')}</select></div>
+      <div class="field"><label>別名（逗號分隔，檢索時視同本名）</label>
+        <input id="tgAlias" type="text" placeholder="例：我家的貓、橘貓"></div>
+      <button class="confirm" id="tgSave">✓ 儲存</button>
+      <button class="act-row danger" id="tgDel">${APP.svg(APP.ICONS.trash, 'ic')} 刪除這個標籤</button>`);
+
+    sh.querySelector('#tgSave').onclick = () => {
+      const next = sh.querySelector('#tgName').value.trim();
+      const kind = sh.querySelector('#tgKind').value;
+      if (!next) return;
+      for (const c of M.CLIPS) for (const t of c.tags) if (t.name === name) { t.name = next; t.kind = kind; }
+      closeSheet(); APP.toast('已更新'); renderTags();
+    };
+    sh.querySelector('#tgDel').onclick = () => {
+      if (!confirm(`刪除標籤「${name}」？收藏的圖本身不會被刪。`)) return;
+      for (const c of M.CLIPS) c.tags = c.tags.filter(t => t.name !== name);
+      closeSheet(); APP.toast('已刪除'); renderTags();
+    };
+  }
+
+  /* ── AI 分析（第四步 v2，先顯示不生效）── */
+  function renderAI() {
+    const state = { before: 10, after: 20 };
+    body.innerHTML = `
+      <div class="set-group">
+        <div class="gt">分析區間</div>
+        <div class="set-row"><div><div class="l">往前秒數</div><div class="sub">送 AI 分析時，從時間點往前涵蓋的秒數</div></div>
+          <div class="stepper"><button data-k="before" data-d="-1">−</button><span class="v" id="before">10</span><button data-k="before" data-d="1">＋</button></div></div>
+        <div class="set-row"><div><div class="l">往後秒數</div><div class="sub">往後涵蓋的秒數</div></div>
+          <div class="stepper"><button data-k="after" data-d="-1">−</button><span class="v" id="after">20</span><button data-k="after" data-d="1">＋</button></div></div>
+      </div>
+      <div class="set-note">第四步（AI 補充）上線後才會生效，v1 不會送出任何分析。</div>`;
+    body.querySelectorAll('.stepper button').forEach(b => b.onclick = () => {
+      const k2 = b.dataset.k;
+      state[k2] = Math.max(0, state[k2] + (+b.dataset.d));
+      document.getElementById(k2).textContent = state[k2];
+    });
+  }
+
+  /* ── 縮圖服務 ── */
+  function renderThumbs() {
+    body.innerHTML = `
+      <div class="set-group">
+        <div class="gt">修復</div>
+        <div class="set-row link" id="refetch">
+          ${APP.svg(APP.ICONS.imagePlus, 'ic dim')}
+          <div><div class="l">重新抓取缺少的縮圖</div><div class="sub">縮圖服務降級期間收藏的影片，恢復後在此批次補抓</div></div>
+          ${APP.svg(APP.ICONS.chevronRight, 'ic dim arrow')}
+        </div>
+      </div>
+      <div class="set-note">目前沒有缺少縮圖的收藏。</div>`;
+    document.getElementById('refetch').onclick = () => APP.toast('（原型）會排入批次補抓工作');
+  }
+</script>
+</body>
+</html>

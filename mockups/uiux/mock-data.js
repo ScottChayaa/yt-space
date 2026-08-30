@@ -172,6 +172,32 @@ const PLACES = {
 };
 for (const c of CLIPS) c.place = PLACES[c.id] || '';
 
+// 地點已是獨立欄位，tag.kind 不再有 'place'（規格第四節）；舊的地點標籤在此清掉
+for (const c of CLIPS) c.tags = c.tags.filter(t => t.kind !== 'place');
+
+/* 查詢用的 facet：地點與標籤混在同一排（規格第六節 /api/facets）
+   facet='place' 走 shot.place 比對，facet='tag' 走 shot_tag */
+function shotFacets(clip) {
+  return [
+    ...(clip.place ? [{ name: clip.place, kind: 'place', facet: 'place', source: 'human' }] : []),
+    ...clip.tags.map(t => ({ ...t, facet: 'tag' }))
+  ];
+}
+function facetKey(f) { return f.facet + ':' + f.name; }
+// 一批 shot 的 facet 統計，依張數由多到少
+function allFacets(list) {
+  const map = new Map();
+  for (const c of list) for (const f of shotFacets(c)) {
+    const k = facetKey(f);
+    if (!map.has(k)) map.set(k, { ...f, count: 0 });
+    map.get(k).count++;
+  }
+  return [...map.values()].sort((a, b) => b.count - a.count);
+}
+function matchesFacet(clip, f) {
+  return f.facet === 'place' ? clip.place === f.name : clip.tags.some(t => t.name === f.name);
+}
+
 // event_date 的來源（見 spec 第四節預設值鏈）：
 // recordingDate 多數影片為空，所以「來自上傳日」才是常態，只有它需要 ⚠ 提示。
 const DATE_SRC = { c01: 'recorded', c05: 'recorded', c11: 'recorded' };
@@ -237,5 +263,6 @@ function removeClip(clipId) {
 
 Object.assign(window.MOCK, {
   FOLDERS, FOLDER_SHOTS, folderChildren, folderById, folderCount,
-  folderDepth, shotFolders, addFolder, removeClip, allPlaces
+  folderDepth, shotFolders, addFolder, removeClip, allPlaces,
+  shotFacets, facetKey, allFacets, matchesFacet
 });
