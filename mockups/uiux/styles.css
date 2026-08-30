@@ -184,7 +184,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .chip {
   display: inline-flex; align-items: center; gap: 5px;
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: 999px; padding: 6px 11px; font-size: 0.82rem; color: var(--text); box-shadow: var(--shadow);
+  border-radius: 8px; padding: 6px 11px; font-size: 0.82rem; color: var(--text); box-shadow: var(--shadow);
 }
 .chip .kico { width: 14px; height: 14px; flex-shrink: 0; }
 .chip .n { color: var(--text-dim); font-size: 0.7rem; margin-left: 1px; }
@@ -379,7 +379,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
   display: flex; flex-wrap: wrap; align-content: flex-start; gap: 8px;
   padding: 12px 14px calc(var(--nav-h) + 76px);
 }
-.tag-cloud .chip, .month-tags .chip, .rs-cond .chip { border-radius: 8px; cursor: pointer; }
+.tag-cloud .chip, .month-tags .chip, .rs-cond .chip { cursor: pointer; }
 .tag-cloud .empty { padding: 24px 0; }
 
 /* 確認查詢：固定在底部導覽列之上 */
@@ -415,7 +415,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .lb .lb-info .d { font-size: 0.95rem; margin-bottom: 6px; }
 .lb .lb-info .d.dim { color: rgba(255,255,255,0.45); font-style: italic; }
 .lb .lb-info .chips { margin-bottom: 6px; }
-.lb .lb-info .chip { background: rgba(255,255,255,0.12); border-color: transparent; color: #fff; border-radius: 8px; }
+.lb .lb-info .chip { background: rgba(255,255,255,0.12); border-color: transparent; color: #fff; }
 .lb .lb-info .meta { display: flex; align-items: baseline; gap: 8px; font-size: 0.76rem; color: rgba(255,255,255,0.6); }
 .lb .lb-info .meta .vt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lb .lb-info .meta .at { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
