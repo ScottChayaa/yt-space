@@ -56,12 +56,23 @@ function setStep(n) {
   window.scrollTo(0, 0);
 }
 
+/* 由「已選的時間點」建出第三步的圖資列（草稿還原時也走這條）*/
+function buildItems() {
+  return [...W.selected].sort((a, b) => a - b).map(t => {
+    const f = W.frames.find(x => x.t === t);
+    return { t, url: f?.url, applied: false,
+             eventDate: '2026-08-20', place: '', tags: '', desc: '' };
+  });
+}
+
 /* ───── 草稿 ───── */
 function saveDraft() {
   if (!W || W.mode === 'meta' || W.step < 2) return;
   localStorage.setItem(DRAFT_KEY, JSON.stringify({
     id: W.v.id, step: W.step, sel: [...W.selected],
-    manual: W.frames.filter(f => f.manual).map(f => f.t)
+    manual: W.frames.filter(f => f.manual).map(f => f.t),
+    // 第三步要連填到一半的圖資一起存，回來才接得下去（url 是暫時的 blob，不存）
+    items: W.step === 3 ? (W.items || []).map(({ url, ref, ...rest }) => rest) : null
   }));
 }
 function clearDraft() { localStorage.removeItem(DRAFT_KEY); }
@@ -130,6 +141,11 @@ function startWizard(found, restore) {
     for (const t of restore.manual || []) W.frames.push({ t, manual: true });
     W.frames.sort((a, b) => a.t - b.t);
     W.selected = new Set(restore.sel);
+    if (restore.step === 3) {
+      // 以草稿裡的圖資為主，沒有的（舊草稿）就依已選的時間點重建
+      const saved = new Map((restore.items || []).map(it => [it.t, it]));
+      W.items = buildItems().map(it => ({ ...it, ...(saved.get(it.t) || {}), url: it.url }));
+    }
     return setStep(restore.step);
   }
   setStep(W.mode === 'meta' ? 3 : 2);   // 批次編輯直接進第三步
@@ -265,11 +281,7 @@ function renderStep2() {
   };
 
   document.getElementById('next').onclick = () => {
-    W.items = [...W.selected].sort((a, b) => a - b).map(t => {
-      const f = W.frames.find(x => x.t === t);
-      return { t, url: f?.url, applied: false,
-               eventDate: '2026-08-20', place: '', tags: '', desc: '' };
-    });
+    W.items = buildItems();
     setStep(3);
   };
 
@@ -301,18 +313,20 @@ function renderStep3() {
       <button id="qInv">反選</button><button id="qTodo">未填的</button>
     </div>
     <div class="wz-grid step3" id="grid3"></div>
-    <div class="meta-drawer" id="drawer" style="display:none">
-      <div class="dh"><span id="dTitle"></span><button class="apply" id="dApply">套用</button></div>
-      <div class="field"><label>時間（事件發生日）<span class="warn-inline">⚠ 預設帶入 YT 日期，可能不是拍攝日</span></label>
-        <input id="dDate" type="date"></div>
-      <div class="field"><label>地點</label><input id="dPlace" type="text" placeholder="例：宜蘭">
-        <div class="sug" id="dPlaces"></div></div>
-      <div class="field"><label>標籤</label><div class="tag-editor" id="dTags"></div></div>
-      <div class="field"><label>描述</label><textarea id="dDesc" rows="2" placeholder="留空，之後 AI 補"></textarea></div>
-    </div>
-    <div class="wz-foot">
-      <span class="n" id="cnt3"></span>
-      <button class="go" id="finish">完成</button>
+    <div class="wz-dock">
+      <div class="meta-drawer" id="drawer" style="display:none">
+        <div class="dh"><span id="dTitle"></span><button class="apply" id="dApply">套用</button></div>
+        <div class="field"><label>時間（事件發生日）<span class="warn-inline">⚠ 預設帶入 YT 日期，可能不是拍攝日</span></label>
+          <input id="dDate" type="date"></div>
+        <div class="field"><label>地點</label><input id="dPlace" type="text" placeholder="例：宜蘭">
+          <div class="sug" id="dPlaces"></div></div>
+        <div class="field"><label>標籤</label><div class="tag-editor" id="dTags"></div></div>
+        <div class="field"><label>描述</label><textarea id="dDesc" rows="2" placeholder="留空，之後 AI 補"></textarea></div>
+      </div>
+      <div class="wz-foot">
+        <span class="n" id="cnt3"></span>
+        <button class="go" id="finish">完成</button>
+      </div>
     </div>`;
 
   const fields = { dDate: 'eventDate', dPlace: 'place', dDesc: 'desc' };
@@ -353,10 +367,10 @@ function renderStep3() {
     grid.innerHTML = '';
     W.items.forEach((it, i) => {
       const el = document.createElement('div');
-      // 已套用（右上綠勾）與勾選中（左上藍勾）分屬兩個角落，可以同時存在
-      el.className = ['wz-cell', sel.has(i) ? 'sel' : '', it.applied ? 'done' : ''].join(' ').trim();   // 已套用＝右上綠勾，勾選中＝左上藍勾，兩者共存
+      // 已套用（右上綠色方形徽章）與勾選中（左上圓形勾）分屬兩個角落，可以同時存在
+      el.className = ['wz-cell', sel.has(i) ? 'sel' : '', it.applied ? 'done' : ''].join(' ').trim();
       el.style = it.url ? `background-image:url('${it.url}');background-size:cover` : M.thumbStyle(W.key, it.t);
-      el.innerHTML = `<span class="tm">${M.fmtTime(it.t)}</span>` + (it.applied ? '<span class="done-mark"></span>' : '');
+      el.innerHTML = `<span class="tm">${M.fmtTime(it.t)}</span>` + (it.applied ? `<span class="done-mark" title="已填圖資">${APP.svg(APP.ICONS.fileCheck, 'ic')}</span>` : '');
       el.onclick = () => { sel.has(i) ? sel.delete(i) : sel.add(i); renderGrid3(); };
       grid.appendChild(el);
     });
@@ -387,6 +401,7 @@ function renderStep3() {
       }
     }
     sel.clear(); renderGrid3();
+    saveDraft();
     APP.toast('已套用');
   };
 
