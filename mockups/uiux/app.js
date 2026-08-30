@@ -217,28 +217,154 @@ function openPanel(html) {
   return sh;
 }
 
-/* ── shot 就地編輯（描述／地點／標籤／時間）── */
+/* ── 自繪播放器（詳情頁與取圖精靈第二步共用）──
+   opts: { videoId, duration, at, onSeek(sec), onPlay(sec) }
+   回傳 { seek(sec), setRegions(clips, selId), time } */
+function mountPlayer(host, opts) {
+  const D = opts.duration;
+  host.classList.add('player');
+  // 控制項全部疊在畫面上（比照 YT）：左下時間、底部進度條，沒有另外的黑色控制列
+  host.innerHTML = `
+    <div class="stage">
+      <div class="sb-frame" role="img" aria-label="播放畫面"></div>
+      <button class="center-play">${svg(ICONS.play, 'ic', true)}</button>
+      <span class="time"><span class="cur">0:00</span> / ${M.fmtTime(D)}</span>
+      <div class="track"><div class="rail"></div><div class="fill" style="width:0%"></div><div class="head" style="left:0%"></div></div>
+    </div>`;
+  const q = sel => host.querySelector(sel);
+  let cur = 0;
+  function paint() {
+    q('.cur').textContent = M.fmtTime(cur);
+    q('.sb-frame').style.cssText = M.thumbStyle(opts.videoId, cur);
+    q('.fill').style.width = q('.head').style.left = (cur / D * 100) + '%';
+  }
+  function seek(sec, notify) {
+    cur = Math.max(0, Math.min(Math.round(sec), D));
+    paint();
+    if (notify) opts.onSeek?.(cur);
+  }
+  q('.track').onclick = e => {
+    const r = e.currentTarget.getBoundingClientRect();
+    seek((e.clientX - r.left) / r.width * D, true);
+  };
+  q('.center-play').onclick = () =>
+    (opts.onPlay || (() => alert('（原型）播放器會 seekTo 並播放 · 正式版用 YT iframe API')))(cur);
+
+  // 進度條上的收藏標示（詳情頁用；精靈第二步不傳就不畫）
+  function setRegions(items, selId) {
+    const track = q('.track');
+    track.querySelectorAll('.region').forEach(e => e.remove());
+    for (const c of items || []) {
+      const r = document.createElement('div');
+      r.className = 'region' + (c.id === selId ? ' sel' : '');
+      r.style.left = (c.start / D * 100) + '%';
+      r.style.width = (8 / D * 100) + '%';       // shot 是單一時間點，給它看得見的最小寬度
+      track.appendChild(r);
+    }
+  }
+  seek(opts.at || 0);
+  return { seek: sec => seek(sec), setRegions, get time() { return cur; } };
+}
+
+/* ── 標籤編輯器（chip 形式；就地編輯與精靈第三步共用）──
+   host: 容器元素；tags: [{name,kind,source}]；onChange(tags) 每次變動都會呼叫。
+   host.dataset.mixed='1' 代表多張圖的值不一致，先顯示〈多個值〉，動過才開始收集。*/
+function tagEditor(host, tags, onChange) {
+  let list = tags.map(t => ({ ...t }));
+  let open = false;
+  const isMixed = () => host.dataset.mixed === '1';
+  function touched() { host.dataset.mixed = '0'; onChange?.(list); }
+
+  function render() {
+    const known = M.allTags();
+    const pool = known.filter(t => !list.some(x => x.name === t.name));
+    host.innerHTML = `
+      <div class="te-row">
+        ${isMixed() ? '<span class="te-mixed">〈多個值〉</span>'
+          : list.map(t => `<span class="chip mini te-chip">${kindSvg(t.kind)}<span class="cn">${t.name}</span><button type="button" class="x" data-del="${t.name}">×</button></span>`).join('')}
+        <button type="button" class="te-add ${open ? 'on' : ''}">＋</button>
+      </div>
+      ${open ? `<div class="te-pick">
+        <div class="te-pool">${pool.length
+          ? pool.map(t => `<span class="chip mini" data-add="${t.name}" data-kind="${t.kind}">${kindSvg(t.kind)}<span class="cn">${t.name}</span><span class="n">${t.count}</span></span>`).join('')
+          : '<span class="te-hint">既有標籤都加過了</span>'}</div>
+        <div class="te-new">
+          <input type="text" class="te-name" placeholder="新標籤">
+          <select class="te-kind">${Object.entries(KIND).filter(([k]) => k !== 'place')
+            .map(([k, v]) => `<option value="${k}" ${k === 'topic' ? 'selected' : ''}>${v.label}</option>`).join('')}</select>
+          <button type="button" class="te-ok">新增</button>
+        </div>
+      </div>` : ''}`;
+
+    host.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
+      list = list.filter(t => t.name !== b.dataset.del); touched(); render();
+    });
+    host.querySelector('.te-add').onclick = () => { open = !open; render(); };
+    host.querySelectorAll('[data-add]').forEach(el => el.onclick = () => {
+      if (isMixed()) list = [];            // 從〈多個值〉開始編輯＝整組換掉
+      list.push({ name: el.dataset.add, kind: el.dataset.kind, source: 'human' });
+      touched(); render();
+    });
+    const ok = host.querySelector('.te-ok');
+    if (ok) ok.onclick = () => {
+      const name = host.querySelector('.te-name').value.trim();
+      if (!name || list.some(t => t.name === name)) return;
+      if (isMixed()) list = [];
+      list.push({ name, kind: host.querySelector('.te-kind').value, source: 'human' });
+      touched(); render();
+    };
+  }
+  render();
+}
+
+/* ── 地點建議：點一下既有地點就填入（等同 SELECT DISTINCT place）── */
+function placeSuggest(host, input, onPick) {
+  // 只列常用的幾個，避免建議列比欄位本身還長
+  const places = M.allPlaces().filter(x => x.name !== input.value).slice(0, 8);
+  host.innerHTML = places.map(p => `<span class="chip mini" data-p="${p.name}">${kindSvg('place')}<span class="cn">${p.name}</span></span>`).join('');
+  host.querySelectorAll('[data-p]').forEach(el => el.onclick = () => {
+    input.value = el.dataset.p; onPick?.();
+    placeSuggest(host, input, onPick);          // 重畫，讓剛選的那個從建議中消失
+  });
+}
+
+/* ── shot 就地編輯（時間／地點／標籤／描述）──
+   欄位順序與精靈第三步的抽屜一致：時間最上（首頁分組依據），描述最下。*/
 function openShotSheet(shot, onSave) {
   const v = M.videoOf(shot);
+  const beforeMonth = shot.eventDate.slice(0, 7);
+  // ⚠ 只在日期還是 YT 上傳日時提醒；來自拍攝日或使用者改過就不再嚇人
+  const dateNote = shot.dateSrc === 'recorded'
+    ? '<div class="src-line">來自 YT 拍攝日</div>'
+    : shot.dateSrc === 'user' ? ''
+    : '<div class="warn-line">⚠ 這是 YT 上傳日，可能不是實際拍攝日</div>';
   const sh = openPanel(`
     <div class="srow">
       <span class="trange">${M.fmtTime(shot.start)} ・ 《${v.title.slice(0, 16)}…》</span>
       <button class="close" onclick="closeSheet()">${svg(ICONS.close, 'ic')}</button>
     </div>
-    <div class="field"><label>描述（可留空，之後 AI 補）</label><textarea id="es-desc" rows="2">${shot.summary || ''}</textarea></div>
-    <div class="field"><label>地點</label><input id="es-place" type="text" value="${shot.place || ''}" placeholder="例：宜蘭"></div>
-    <div class="field"><label>標籤（逗號分隔）</label><input id="es-tags" type="text" value="${shot.tags.map(t => t.name).join('、')}"></div>
-    <div class="field"><label>時間（事件發生日）</label><input id="es-date" type="date" value="${shot.eventDate}">
-      <div class="warn-line">⚠ 預設帶入 YT 日期，可能不是實際拍攝日</div></div>
+    <div class="field"><label>時間（事件發生日）</label><input id="es-date" type="date" value="${shot.eventDate}">${dateNote}</div>
+    <div class="field"><label>地點</label><input id="es-place" type="text" value="${shot.place || ''}" placeholder="例：宜蘭">
+      <div class="sug" id="es-places"></div></div>
+    <div class="field"><label>標籤</label><div class="tag-editor" id="es-tags"></div></div>
+    <div class="field"><label>描述</label><textarea id="es-desc" rows="2" placeholder="留空，之後 AI 補">${shot.summary || ''}</textarea></div>
     <button class="confirm" id="es-save">✓ 儲存</button>
   `);
+  const placeInput = sh.querySelector('#es-place');
+  placeSuggest(sh.querySelector('#es-places'), placeInput);
+  let tags = shot.tags.map(t => ({ ...t }));
+  tagEditor(sh.querySelector('#es-tags'), tags, next => tags = next);
+
   sh.querySelector('#es-save').onclick = () => {
     shot.summary = sh.querySelector('#es-desc').value.trim();
-    shot.place = sh.querySelector('#es-place').value.trim();
-    shot.eventDate = sh.querySelector('#es-date').value || shot.eventDate;
-    const names = sh.querySelector('#es-tags').value.split(/[、,，]/).map(x => x.trim()).filter(Boolean);
-    shot.tags = names.map(n => shot.tags.find(t => t.name === n) || { name: n, kind: 'topic', source: 'human' });
-    closeSheet(); toast('已儲存'); onSave?.();
+    shot.place = placeInput.value.trim();
+    const d = sh.querySelector('#es-date').value;
+    if (d && d !== shot.eventDate) { shot.eventDate = d; shot.dateSrc = 'user'; }
+    shot.tags = tags;
+    closeSheet();
+    const moved = shot.eventDate.slice(0, 7) !== beforeMonth;
+    toast(moved ? `已儲存 ・ 已移到 ${monthLabel(shot.eventDate.slice(0, 7))}` : '已儲存');
+    onSave?.();
   };
 }
 
@@ -316,7 +442,7 @@ function openLightbox(list, idx, opts = {}) {
     lb.querySelector('#lb-close').onclick = close;
     lb.querySelector('#lb-play').onclick = () => location.href = `detail.html?v=${s.videoId}&c=${s.id}`;
     lb.querySelector('#lb-folder').onclick = () => openFolderPicker(s);
-    lb.querySelector('#lb-edit').onclick = () => openShotSheet(s, render);
+    lb.querySelector('#lb-edit').onclick = () => openShotSheet(s, () => { render(); opts.onChange?.(); });
     lb.querySelector('#lb-share').onclick = async () => {
       const url = `https://youtu.be/${M.realId ? M.realId(s.videoId) : s.videoId}?t=${s.start}`;
       if (navigator.share) { try { await navigator.share({ url }); } catch {} }
@@ -360,4 +486,4 @@ function openLightbox(list, idx, opts = {}) {
   lb.classList.add('show');
 }
 
-Object.assign(window.APP, { toast, openPanel, openShotSheet, openFolderPicker, openLightbox });
+Object.assign(window.APP, { toast, openPanel, openShotSheet, mountPlayer, tagEditor, placeSuggest, openFolderPicker, openLightbox });

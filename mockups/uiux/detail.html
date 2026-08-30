@@ -14,25 +14,8 @@
     <button class="more" id="moreBtn"></button>
   </div>
 
-  <!-- 自繪播放器（隱藏 YT 原生控制） -->
-  <div class="player">
-    <div class="stage">
-      <div id="stage-img" class="sb-frame" role="img" aria-label="播放畫面"></div>
-      <button class="center-play" id="centerPlay"></button>
-    </div>
-    <div class="pbar">
-      <div class="row">
-        <button class="btn" id="playBtn"></button>
-        <span class="time" id="cur">0:00</span>
-        <div class="track" id="track">
-          <div class="rail"></div>
-          <div class="fill" id="fill" style="width:0%"></div>
-          <div class="head" id="head" style="left:0%"></div>
-        </div>
-        <span class="time" id="dur">0:00</span>
-      </div>
-    </div>
-  </div>
+  <!-- 自繪播放器（與取圖精靈第二步共用 APP.mountPlayer）-->
+  <div id="player"></div>
 
   <div class="section">
     <h3>這支影片的收藏 <span class="count" id="clipCount"></span></h3>
@@ -49,8 +32,6 @@
   document.getElementById('nav').innerHTML = APP.renderNav('home');
   document.getElementById('backBtn').innerHTML = APP.svg(APP.ICONS.back, 'ic');
   document.getElementById('moreBtn').innerHTML = APP.svg(APP.ICONS.more, 'ic', true);
-  document.getElementById('centerPlay').innerHTML = APP.svg(APP.ICONS.play, 'ic', true);
-  document.getElementById('playBtn').innerHTML = APP.svg(APP.ICONS.play, 'ic', true);
 
   const params = new URLSearchParams(location.search);
   const videoId = params.get('v') || 'Ea8ICLXTDaU';
@@ -60,44 +41,16 @@
   let clips = M.CLIPS.filter(c => c.videoId === videoId).sort((a, b) => a.start - b.start);
 
   document.getElementById('vtitle').textContent = video.title;
-  document.getElementById('dur').textContent = M.fmtTime(video.duration);
   document.getElementById('clipCount').textContent = `(${clips.length})`;
 
-  // 進度條上的區間標示（半透明色塊）
-  const track = document.getElementById('track');
-  const D = video.duration;
   let selectedId = focusClip || (clips[0] && clips[0].id);
-  function drawRegions() {
-    track.querySelectorAll('.region').forEach(e => e.remove());
-    for (const c of clips) {
-      const r = document.createElement('div');
-      r.className = 'region' + (c.id === selectedId ? ' sel' : '');
-      r.style.left = (c.start / D * 100) + '%';
-      r.style.width = (Math.max(c.end - c.start, 8) / D * 100) + '%';   // 單點 shot 也要看得見
-      track.appendChild(r);
-    }
-  }
-  drawRegions();
+  const startAt = t ? +t                                    // Lightbox【影片播放】帶秒數進來
+    : (clips.find(x => x.id === selectedId) || {}).start || 0;
+  const player = APP.mountPlayer(document.getElementById('player'),
+    { videoId, duration: video.duration, at: startAt });
+  player.setRegions(clips, selectedId);
 
-  // 假播放頭：跳到選定 clip 起點
-  const stage = document.getElementById('stage-img');
-  function seekTo(sec) {
-    document.getElementById('cur').textContent = M.fmtTime(sec);
-    stage.style.cssText = M.thumbStyle(videoId, sec);
-    document.getElementById('fill').style.width = (sec / D * 100) + '%';
-    document.getElementById('head').style.left = (sec / D * 100) + '%';
-  }
-  function focus(c) { selectedId = c.id; drawRegions(); seekTo(c.start); renderClips(); }
-  seekTo(0);
-  if (selectedId) { const c = clips.find(x => x.id === selectedId); if (c) seekTo(c.start); }
-  if (t) seekTo(+t);   // Lightbox【影片播放】帶秒數進來
-
-  document.getElementById('playBtn').onclick = document.getElementById('centerPlay').onclick =
-    () => alert('（原型）播放器會 seekTo 並播放選定區間 · 使用現有 Player.seekTo/playRange');
-  track.onclick = (e) => {
-    const r = track.getBoundingClientRect();
-    seekTo(Math.round((e.clientX - r.left) / r.width * D));
-  };
+  function focus(c) { selectedId = c.id; player.setRegions(clips, selectedId); player.seek(c.start); renderClips(); }
   // ⋯ 選單：影片層級管理
   document.getElementById('moreBtn').onclick = () => {
     const sh = APP.openPanel(`

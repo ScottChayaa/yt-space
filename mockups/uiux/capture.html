@@ -139,25 +139,19 @@ function startWizard(found, restore) {
 function renderStep2() {
   const noSB = !W.level;
   stage.innerHTML = `
-    <div class="wz-player">
-      <div class="frame" id="pFrame" style="${M.thumbStyle(W.key, W.playT)}"></div>
-      <div class="bar"><span id="pCur">${M.fmtTime(W.playT)}</span>
-        <input type="range" id="pRange" min="0" max="${W.v.duration}" value="${W.playT}">
-        <span>${M.fmtTime(W.v.duration)}</span></div>
-    </div>
+    <div id="player" class="wz"></div>
     ${noSB ? `<div class="wz-tip">⚠ 無法取得這支影片的逐段縮圖（影片太短、直播中或剛上傳）。仍可用【手動補圖】收藏畫面。</div>` : ''}
     <div class="wz-tools">
       <button id="tAll" ${noSB ? 'disabled' : ''}>${APP.svg(APP.ICONS.check, 'ic')} 全部選取</button>
       <button id="tSim" ${noSB ? 'disabled' : ''}>${APP.svg(APP.ICONS.filter, 'ic')} 過濾相似</button>
-      <select id="tStr"><option value="h">強度：高</option><option value="m" selected>強度：中</option><option value="l">強度：低</option></select>
       <button id="tManual">${APP.svg(APP.ICONS.imagePlus, 'ic')} 手動補圖</button>
-      <button id="tOnly" class="${W.onlySel ? 'on' : ''}">只看已選</button>
+      <button id="tOnly" class="${W.onlySel ? 'on' : ''}">只看已選<span id="tOnlyN"></span></button>
     </div>
     <div id="tip1" class="wz-tip" style="display:none">點一下收藏 ・ 長按可跳到那一段看看</div>
     <div class="wz-grid" id="grid"></div>
     <div class="wz-foot">
       <span class="n" id="cnt"></span>
-      <button class="go" id="next" disabled>下一步 →</button>
+      <button class="go" id="next" disabled>下一步</button>
     </div>`;
 
   if (!localStorage.getItem('ytspace_tip_capture')) {
@@ -168,13 +162,9 @@ function renderStep2() {
     }, { once: true, capture: true });
   }
 
-  const range = document.getElementById('pRange');
-  range.oninput = () => {
-    W.playT = +range.value;
-    document.getElementById('pCur').textContent = M.fmtTime(W.playT);
-    document.getElementById('pFrame').style = M.thumbStyle(W.key, W.playT);
-    markNow();
-  };
+  // 播放器與詳情頁共用同一個元件
+  const player = APP.mountPlayer(document.getElementById('player'),
+    { videoId: W.key, duration: W.v.duration, at: W.playT, onSeek: sec => { W.playT = sec; markNow(); } });
 
   function markNow() {
     document.querySelectorAll('.wz-cell').forEach(el => {
@@ -184,6 +174,7 @@ function renderStep2() {
 
   function syncCnt() {
     document.getElementById('cnt').textContent = `共 ${W.frames.length} 張 · 已選 ${W.selected.size}`;
+    document.getElementById('tOnlyN').textContent = W.selected.size ? ` ${W.selected.size}` : '';
     document.getElementById('next').disabled = W.selected.size === 0;
     saveDraft();
   }
@@ -209,7 +200,7 @@ function renderStep2() {
           else W.selected.has(f.t) ? W.selected.delete(f.t) : W.selected.add(f.t);
           renderGrid();
         },
-        onHold: () => { W.playT = f.t; range.value = f.t; range.oninput(); }
+        onHold: () => { W.playT = f.t; player.seek(f.t); markNow(); }
       });
       grid.appendChild(el);
     }
@@ -226,7 +217,8 @@ function renderStep2() {
 
   document.getElementById('tSim').onclick = () => {
     if (W.selected.size < 2) return APP.toast('至少要選 2 張才能過濾');
-    const thr = { h: W.iv * 2.2, m: W.iv * 1.1, l: W.iv * 0.5 }[document.getElementById('tStr').value];
+    // 強度改由「帳號 › 過濾相似強度」設定，這裡只讀值
+    const thr = { h: W.iv * 2.2, m: W.iv * 1.1, l: W.iv * 0.5 }[localStorage.getItem('ytspace_sim_strength') || 'm'];
     const times = [...W.selected].sort((a, b) => a - b);
     let last = -1e9; const drops = [];
     for (const t of times) {
@@ -284,6 +276,13 @@ function renderStep2() {
   renderGrid();
 }
 
+/* 標籤在精靈裡以字串保存（沿用既有草稿格式），編輯時轉成 chip 物件 */
+function parseTags(str) {
+  const known = M.allTags();
+  return (str || '').split(/[、,，]/).map(x => x.trim()).filter(Boolean)
+    .map(n => ({ name: n, kind: (known.find(t => t.name === n) || {}).kind || 'topic', source: 'human' }));
+}
+
 /* ───── 第三步：定義圖資 ───── */
 function renderStep3() {
   // 批次編輯模式：載入該影片的既有收藏
@@ -306,9 +305,10 @@ function renderStep3() {
       <div class="dh" id="dTitle"></div>
       <div class="field"><label>時間（事件發生日）<span class="warn-inline">⚠ 預設帶入 YT 日期，可能不是拍攝日</span></label>
         <input id="dDate" type="date"></div>
-      <div class="field"><label>地點</label><input id="dPlace" type="text" placeholder="例：宜蘭"></div>
-      <div class="field"><label>標籤（逗號分隔）</label><input id="dTags" type="text" placeholder="例：露營、阿明"></div>
-      <div class="field"><label>描述（可留空，之後 AI 補）</label><textarea id="dDesc" rows="2"></textarea></div>
+      <div class="field"><label>地點</label><input id="dPlace" type="text" placeholder="例：宜蘭">
+        <div class="sug" id="dPlaces"></div></div>
+      <div class="field"><label>標籤</label><div class="tag-editor" id="dTags"></div></div>
+      <div class="field"><label>描述</label><textarea id="dDesc" rows="2" placeholder="留空，之後 AI 補"></textarea></div>
       <button class="apply" id="dApply"></button>
     </div>
     <div class="wz-foot">
@@ -316,8 +316,12 @@ function renderStep3() {
       <button class="go" id="finish">完成</button>
     </div>`;
 
-  const fields = { dDate: 'eventDate', dPlace: 'place', dTags: 'tags', dDesc: 'desc' };
+  const fields = { dDate: 'eventDate', dPlace: 'place', dDesc: 'desc' };
   for (const id in fields) document.getElementById(id).addEventListener('input', () => dirty[fields[id]] = true);
+  // 標籤是 chip 形式（與就地編輯共用 APP.tagEditor），不走上面那條 input 事件
+  let drawerTags = [];
+  APP.placeSuggest(document.getElementById('dPlaces'), document.getElementById('dPlace'),
+    () => dirty.place = true);
 
   function fillDrawer() {
     const drawer = document.getElementById('drawer');
@@ -326,6 +330,13 @@ function renderStep3() {
     const list = [...sel].map(i => W.items[i]);
     document.getElementById('dTitle').textContent =
       sel.size === 1 ? `套用到已選的 1 張 ・ ${M.fmtTime(list[0].t)}` : `套用到已選的 ${sel.size} 張`;
+    // 標籤：各張一致就直接編，不一致先顯示〈多個值〉
+    const tagVals = new Set(list.map(x => x.tags));
+    const host = document.getElementById('dTags');
+    host.dataset.mixed = tagVals.size === 1 ? '0' : '1';
+    drawerTags = tagVals.size === 1 ? parseTags([...tagVals][0]) : [];
+    dirty.tags = false;
+    APP.tagEditor(host, drawerTags, next => { drawerTags = next; dirty.tags = true; });
     for (const [id, key] of Object.entries(fields)) {
       const el = document.getElementById(id);
       const vals = new Set(list.map(x => x[key]));
@@ -363,6 +374,7 @@ function renderStep3() {
     for (const i of sel) {
       const it = W.items[i];
       for (const key of Object.values(fields)) if (dirty[key]) it[key] = document.getElementById(Object.keys(fields).find(k => fields[k] === key)).value;
+      if (dirty.tags) it.tags = drawerTags.map(t => t.name).join('、');
       it.applied = true;
       if (it.ref) {   // 批次編輯模式：直接寫回既有 shot
         it.ref.eventDate = it.eventDate; it.ref.place = it.place; it.ref.summary = it.desc;

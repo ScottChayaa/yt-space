@@ -172,6 +172,22 @@ const PLACES = {
 };
 for (const c of CLIPS) c.place = PLACES[c.id] || '';
 
+// event_date 的來源（見 spec 第四節預設值鏈）：
+// recordingDate 多數影片為空，所以「來自上傳日」才是常態，只有它需要 ⚠ 提示。
+const DATE_SRC = { c01: 'recorded', c05: 'recorded', c11: 'recorded' };
+for (const c of CLIPS) c.dateSrc = DATE_SRC[c.id] || 'published';
+
+// 既有地點（去重，依使用次數）→ 編輯時給建議，等同 SELECT DISTINCT place
+function allPlaces() {
+  const map = new Map();
+  for (const c of CLIPS) {
+    if (!c.place) continue;
+    map.set(c.place, (map.get(c.place) || 0) + 1);
+  }
+  return [...map.entries()].map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
 // 分類資料夾（樹狀，深度上限 5；mockup 造 2 層示意）
 const FOLDERS = [
   { id: 'f1', name: '馬拉松', parent: null },
@@ -221,5 +237,5 @@ function removeClip(clipId) {
 
 Object.assign(window.MOCK, {
   FOLDERS, FOLDER_SHOTS, folderChildren, folderById, folderCount,
-  folderDepth, shotFolders, addFolder, removeClip
+  folderDepth, shotFolders, addFolder, removeClip, allPlaces
 });

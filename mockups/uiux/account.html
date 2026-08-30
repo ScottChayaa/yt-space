@@ -20,6 +20,15 @@
     <button class="chip" style="margin-left:auto">登出</button>
   </div>
 
+  <!-- 取圖偏好 -->
+  <div class="set-group">
+    <div class="gt">取圖</div>
+    <div class="set-row">
+      <div><div class="l">過濾相似強度</div><div class="sub">第二步【過濾相似】砍得多寡；強度高＝更容易判定相似</div></div>
+      <select id="simStr" class="sel"><option value="h">高</option><option value="m">中</option><option value="l">低</option></select>
+    </div>
+  </div>
+
   <!-- AI 分析區間（第四步 v2 用，先顯示不生效） -->
   <div class="set-group">
     <div class="gt">AI 分析區間 <span style="text-transform:none">（第四步上線後生效）</span></div>
@@ -63,6 +72,10 @@
 
   document.getElementById('tagList').innerHTML =
     M.allTags().map(t => APP.tagChip(t, { count: t.count })).join('');
+  // 過濾相似強度（取圖精靈第二步讀這個值）
+  const simStr = document.getElementById('simStr');
+  simStr.value = localStorage.getItem('ytspace_sim_strength') || 'm';
+  simStr.onchange = () => localStorage.setItem('ytspace_sim_strength', simStr.value);
 </script>
 </body>
 </html>
