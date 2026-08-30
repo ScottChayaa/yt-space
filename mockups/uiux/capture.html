@@ -300,7 +300,7 @@ function renderStep3() {
       <button id="qAll">全選</button><button id="qNone">全不選</button>
       <button id="qInv">反選</button><button id="qTodo">未填的</button>
     </div>
-    <div class="wz-grid cols4" id="grid3"></div>
+    <div class="wz-grid" id="grid3"></div>
     <div class="meta-drawer" id="drawer" style="display:none">
       <div class="dh" id="dTitle"></div>
       <div class="field"><label>時間（事件發生日）<span class="warn-inline">⚠ 預設帶入 YT 日期，可能不是拍攝日</span></label>
@@ -325,6 +325,8 @@ function renderStep3() {
 
   function fillDrawer() {
     const drawer = document.getElementById('drawer');
+    // 抽屜展開時，縮圖牆要讓出被蓋住的高度，最後幾張才捲得出來
+    document.getElementById('grid3').classList.toggle('has-drawer', !!sel.size);
     if (!sel.size) { drawer.style.display = 'none'; return; }
     drawer.style.display = '';
     const list = [...sel].map(i => W.items[i]);
