@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>yt-space · 設定</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app-main">
+  <div class="topbar"><span class="title">設定</span></div>
+
+  <!-- v1 是紫色漸層 hero ＋ 跨在下緣的三格統計卡。
+       那三個數字（收藏片段／本月新增／來源影片）對一個私人收藏的使用者沒有用處，
+       中間那格甚至只是首頁已經看得到的資訊。v2 收成一行普通的帳號列。 -->
+  <div class="account-head">
+    <div class="avatar-lg">S</div>
+    <div class="who">
+      <div class="name">Scott Lin</div>
+      <div class="mail">mmx112945@gmail.com</div>
+    </div>
+  </div>
+  <div class="set-note" style="padding-top:var(--s2)" id="summary"></div>
+
+  <div class="set-group split" id="menu"></div>
+
+  <!-- 登出移到最底、用破壞性樣式（v1 放在漸層 header 右上角）-->
+  <div class="set-group split">
+    <button class="set-row link danger" id="logout" style="width:100%;justify-content:flex-start">
+      <div><div class="l">登出</div></div>
+    </button>
+  </div>
+</div>
+
+<div id="nav"></div>
+
+<script src="/shared/storyboard.js"></script>
+<script src="mock-data.js"></script>
+<script src="app.js"></script>
+<script>
+  document.getElementById('nav').innerHTML = APP.renderNav('account');
+
+  const st = M.stats();
+  document.getElementById('summary').textContent =
+    `目前收藏 ${st.shots} 張，來自 ${st.videos} 支影片。`;
+
+  const SIM_LABEL = { h: '高', m: '中', l: '低' };
+  // v1 的圖示是按「圖示庫裡有什麼」挑的：標籤管理用放大鏡（那是搜尋）、
+  // 取圖用加號（那是導覽列的取圖鈕）、縮圖服務跟統計卡用同一個圖片圖示。
+  const items = [
+    { k: 'capture', ico: 'filter',    name: '取圖',     val: () => '過濾相似強度：' + SIM_LABEL[localStorage.getItem('ytspace2_sim_strength') || 'm'] },
+    { k: 'tags',    ico: 'tag',       name: '標籤管理', val: () => M.allTags().length + ' 個標籤' },
+    { k: 'ai',      ico: 'sparkles',  name: 'AI 分析',  val: () => '尚未啟用' },
+    { k: 'thumbs',  ico: 'imagePlus', name: '縮圖服務', val: () => '沒有缺少的縮圖' }
+  ];
+  document.getElementById('menu').innerHTML = items.map(it => `
+    <a class="set-row link" href="setting.html?k=${it.k}">
+      ${APP.svg(APP.ICONS[it.ico], 'ic dim')}
+      <div><div class="l">${it.name}</div><div class="sub">${it.val()}</div></div>
+      ${APP.svg(APP.ICONS.chevronRight, 'ic dim arrow')}
+    </a>`).join('');
+
+  document.getElementById('logout').onclick = () => {
+    if (confirm('登出 yt-space？收藏資料留在雲端，下次登入還在。')) APP.toast('（原型）會回到登入頁');
+  };
+</script>
+</body>
+</html>

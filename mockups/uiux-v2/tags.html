@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>yt-space · 查詢</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app-main with-actions" id="main">
+  <div class="topbar">
+    <button class="back" id="backBtn" hidden aria-label="改條件"></button>
+    <span class="title" id="pageTitle">查詢</span>
+  </div>
+
+  <!-- ── 條件區 ── -->
+  <div id="conditions">
+    <div class="qtabs">
+      <button id="tabTag" class="on">標籤與地點</button>
+      <button id="tabText">描述</button>
+    </div>
+
+    <div class="qfield">
+      <span class="qfield-label">時間</span>
+      <button class="btn secondary block" id="dateBtn" style="justify-content:space-between"></button>
+    </div>
+
+    <div id="paneTag">
+      <div class="qfield" style="padding-bottom:0"><span class="qfield-label" id="tagLabel"></span></div>
+      <div class="tag-cloud" id="tagCloud"></div>
+    </div>
+
+    <div id="paneText" hidden>
+      <div class="qfield">
+        <span class="qfield-label">描述關鍵字</span>
+        <div class="search block" id="textBox">
+          <input id="textInput" placeholder="例：加勒比海夜潛看到的大蝦">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 結果區：v1 要跳到另一個頁面，v2 直接接在同一頁 ── -->
+  <div id="results" hidden>
+    <div class="result-bar" id="resultBar"></div>
+    <div class="date-group" style="padding-top:var(--s3)"><div class="tiles c3" id="tiles"></div></div>
+    <div class="empty" id="empty" hidden></div>
+  </div>
+</div>
+
+<!-- 貼底動作：按鈕標示會查幾個條件；停用時附上原因（v1 只是把按鈕變淡）-->
+<div class="sticky-actions" id="actions">
+  <button class="btn primary block" id="go" disabled>查詢</button>
+  <div class="btn-reason" id="reason"></div>
+</div>
+
+<div id="nav"></div>
+
+<script src="/shared/storyboard.js"></script>
+<script src="mock-data.js"></script>
+<script src="app.js"></script>
+<script>
+  document.getElementById('nav').innerHTML = APP.renderNav('tags');
+  document.getElementById('backBtn').innerHTML = APP.svg(APP.ICONS.back, 'ic');
+  document.getElementById('textBox').insertAdjacentHTML('afterbegin', APP.svg(APP.ICONS.search, 'ic'));
+
+  const REVIEWED = M.CLIPS.filter(c => c.status === 'reviewed');
+  const selected = new Set();
+  let mode = 'tag';
+  let upTo = '';                       // '' = 全部日期（v1 預設是本月，會默默藏掉資料）
+  const inRange = c => !upTo || c.eventDate.slice(0, 7) <= upTo;
+  const dateText = () => upTo ? APP.monthLabel(upTo) + ' 以前' : '全部日期';
+
+  /* ── 由 URL 帶條件進來（首頁的月份標籤會這樣連過來）── */
+  const P = new URLSearchParams(location.search);
+  upTo = P.get('upto') || '';
+  for (const n of (P.get('tags') || '').split(',').filter(Boolean)) selected.add('tag:' + n);
+  for (const n of (P.get('places') || '').split(',').filter(Boolean)) selected.add('place:' + n);
+  const autoRun = selected.size > 0;
+
+  /* ── 分頁 ── */
+  function setMode(m) {
+    mode = m;
+    document.getElementById('tabTag').classList.toggle('on', m === 'tag');
+    document.getElementById('tabText').classList.toggle('on', m === 'text');
+    document.getElementById('paneTag').hidden = m !== 'tag';
+    document.getElementById('paneText').hidden = m !== 'text';
+    syncGo();
+  }
+  document.getElementById('tabTag').onclick = () => setMode('tag');
+  document.getElementById('tabText').onclick = () => setMode('text');
+
+  /* ── 標籤雲：每個 chip 帶張數，選了就打勾（不只靠顏色）── */
+  function renderTags() {
+    const pool = REVIEWED.filter(inRange);
+    const avail = M.allFacets(pool);
+    const keys = new Set(avail.map(M.facetKey));
+    for (const k of [...selected]) if (!keys.has(k)) selected.delete(k);
+
+    document.getElementById('tagLabel').textContent = `標籤與地點（${avail.length}）`;
+    const el = document.getElementById('tagCloud');
+    el.innerHTML = avail.map(f => {
+      const n = pool.filter(c => M.matchesFacet(c, f)).length;
+      return APP.tagChip(f, { selected: selected.has(M.facetKey(f)), key: M.facetKey(f), count: n });
+    }).join('') || '<span class="empty">這個時間以前沒有標籤</span>';
+
+    el.querySelectorAll('.chip').forEach(chip => chip.onclick = () => {
+      const k = chip.dataset.key;
+      selected.has(k) ? selected.delete(k) : selected.add(k);
+      renderTags();
+    });
+    syncGo();
+  }
+
+  function syncGo() {
+    const go = document.getElementById('go');
+    const reason = document.getElementById('reason');
+    if (mode === 'tag') {
+      go.disabled = selected.size === 0;
+      go.textContent = selected.size ? `查詢 ${selected.size} 個條件` : '查詢';
+      reason.textContent = selected.size ? '' : '先選一個以上的標籤或地點';
+    } else {
+      const q = document.getElementById('textInput').value.trim();
+      go.disabled = !q;
+      go.textContent = '查詢';
+      reason.textContent = q ? '' : '先輸入一段描述';
+    }
+  }
+  document.getElementById('textInput').addEventListener('input', syncGo);
+
+  /* ── 時間 ── */
+  function syncDate() {
+    document.getElementById('dateBtn').innerHTML =
+      `<span>${dateText()}</span>${APP.svg(APP.ICONS.chevronDown, 'ic')}`;
+  }
+  document.getElementById('dateBtn').onclick = () => APP.openMonthPicker({
+    value: upTo, title: '只查這個月以前',
+    onPick: v => { upTo = v; syncDate(); renderTags(); },
+    onClear: () => { upTo = ''; syncDate(); renderTags(); }
+  });
+
+  /* ── 查詢與結果（同一頁切換）── */
+  function matchesText(c, text) {
+    const v = M.videoOf(c);
+    const hay = [c.summary, c.note, c.place, v.title, M.channelOf(c), ...c.tags.map(t => t.name)]
+      .join(' ').toLowerCase();
+    return text.toLowerCase().split(/\s+/).filter(Boolean).some(w => hay.includes(w));
+  }
+
+  function currentList() {
+    const facets = [...selected].map(k => {
+      const [f, ...rest] = k.split(':');
+      const name = rest.join(':');
+      return f === 'place' ? { name, kind: 'place', facet: 'place' } : { name, facet: 'tag' };
+    });
+    const q = document.getElementById('textInput').value.trim();
+    return REVIEWED
+      .filter(c => inRange(c)
+        && (mode !== 'tag' || !facets.length || facets.some(f => M.matchesFacet(c, f)))
+        && (mode !== 'text' || !q || matchesText(c, q)))
+      .sort((a, b) => b.eventDate.localeCompare(a.eventDate));
+  }
+
+  function showConditions() {
+    document.getElementById('conditions').hidden = false;
+    document.getElementById('results').hidden = true;
+    document.getElementById('actions').hidden = false;
+    document.getElementById('main').classList.add('with-actions');
+    document.getElementById('backBtn').hidden = true;
+    document.getElementById('pageTitle').textContent = '查詢';
+    renderTags();
+  }
+  document.getElementById('backBtn').onclick = showConditions;
+
+  function runSearch() {
+    document.getElementById('conditions').hidden = true;
+    document.getElementById('actions').hidden = true;
+    document.getElementById('main').classList.remove('with-actions');
+    document.getElementById('results').hidden = false;
+    document.getElementById('backBtn').hidden = false;
+    document.getElementById('pageTitle').textContent = '查詢結果';
+    renderResults();
+  }
+
+  function renderResults() {
+    const list = currentList();
+    const q = document.getElementById('textInput').value.trim();
+    const conds = mode === 'tag'
+      ? [...selected].map(k => {
+          const [f, ...rest] = k.split(':');
+          const name = rest.join(':');
+          const kind = f === 'place' ? 'place'
+            : (REVIEWED.flatMap(c => c.tags).find(t => t.name === name)?.kind || 'topic');
+          return APP.tagChip({ name, kind, source: 'human' });
+        }).join('')
+      : `<span class="chip mini">${APP.svg(APP.ICONS.search, 'kico')}<span class="cn">${q}</span></span>`;
+
+    document.getElementById('resultBar').innerHTML =
+      `<strong>${list.length} 張</strong><span>·</span><span>${dateText()}</span>
+       <span style="display:flex;gap:var(--s1);flex-wrap:wrap">${conds}</span>`;
+
+    const tiles = document.getElementById('tiles');
+    tiles.innerHTML = '';
+    list.forEach((c, i) => {
+      const tile = document.createElement('button');
+      tile.type = 'button';
+      tile.className = 'tile square';
+      tile.innerHTML = `<div class="thumb"><div class="sb-frame" style="${M.thumbStyle(c.videoId, c.start)}" role="img" aria-label="${c.summary || '片段縮圖'}"></div></div>`;
+      tile.onclick = () => APP.openLightbox(list, i, { onChange: renderResults });
+      tiles.appendChild(tile);
+    });
+
+    const emptyEl = document.getElementById('empty');
+    emptyEl.hidden = list.length > 0;
+    if (!list.length) {
+      emptyEl.innerHTML = `${APP.svg(APP.ICONS.search, 'ic')}
+        <div>沒有符合的收藏</div>
+        <button class="btn secondary" onclick="document.getElementById('backBtn').click()">改條件</button>`;
+    }
+  }
+
+  document.getElementById('go').onclick = runSearch;
+
+  syncDate();
+  renderTags();
+  if (autoRun) runSearch();
+</script>
+</body>
+</html>

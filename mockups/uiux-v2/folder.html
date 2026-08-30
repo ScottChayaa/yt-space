@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>yt-space · 資料夾</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app-main">
+  <div class="topbar">
+    <button class="back" id="backBtn" onclick="history.length>1?history.back():location.href='folders.html'"></button>
+    <span class="title" id="fTitle">資料夾</span>
+  </div>
+  <div class="fd-breadcrumb" id="crumb"></div>
+  <div class="fd-list" id="subs"></div>
+  <div class="date-group"><div class="tiles c3" id="tiles"></div></div>
+  <div class="empty" id="empty" hidden></div>
+</div>
+
+<div id="nav"></div>
+
+<script src="/shared/storyboard.js"></script>
+<script src="mock-data.js"></script>
+<script src="app.js"></script>
+<script>
+document.getElementById('nav').innerHTML = APP.renderNav('folders');
+document.getElementById('backBtn').innerHTML = APP.svg(APP.ICONS.back, 'ic');
+
+const id = new URLSearchParams(location.search).get('id');
+const folder = M.folderById(id);
+if (!folder) location.replace('folders.html');
+
+if (folder) {
+document.getElementById('fTitle').textContent = folder.name;
+
+// 麵包屑
+const crumbs = [];
+let p = folder;
+while (p) { crumbs.unshift(p.name); p = M.folderById(p.parent); }
+document.getElementById('crumb').textContent = '分類 / ' + crumbs.join(' / ');
+
+function render() {
+  // 子資料夾
+  const subs = document.getElementById('subs');
+  subs.innerHTML = '';
+  for (const ch of M.folderChildren(id)) {
+    const row = document.createElement('div');
+    row.className = 'fd-row';
+    row.innerHTML = `${APP.svg(APP.ICONS.folder, 'ic')}<span class="name">${ch.name}</span>
+      <span class="cnt">${M.folderCount(ch.id)}</span>${APP.svg(APP.ICONS.chevronRight, 'ic')}`;
+    row.onclick = () => location.href = `folder.html?id=${ch.id}`;
+    subs.appendChild(row);
+  }
+
+  // 本層的圖（新加入在前 → mock 以陣列序）
+  const ids = M.FOLDER_SHOTS[id] || new Set();
+  const shots = M.CLIPS.filter(c => ids.has(c.id));
+  const tiles = document.getElementById('tiles');
+  tiles.innerHTML = '';
+  shots.forEach((c, i) => {
+    const tile = document.createElement('button');
+    tile.type = 'button';
+    tile.className = 'tile square';
+    tile.innerHTML = `<div class="thumb"><div class="sb-frame" style="${M.thumbStyle(c.videoId, c.start)}" role="img" aria-label="${c.summary || '片段縮圖'}"></div></div>`;
+    tile.onclick = () => APP.openLightbox(shots, i, { onChange: render });
+    tiles.appendChild(tile);
+  });
+  const emptyEl = document.getElementById('empty');
+  emptyEl.hidden = !!(shots.length || M.folderChildren(id).length);
+  if (!emptyEl.hidden) emptyEl.innerHTML = `${APP.svg(APP.ICONS.folder, 'ic')}
+    <div>這個資料夾還沒有圖片</div>
+    <div style="font-size:var(--t-sm)">在首頁點開任何一張圖 →【加入分類】</div>`;
+}
+render();
+}
+</script>
+</body>
+</html>

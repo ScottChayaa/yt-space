@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>yt-space · 取圖</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<!-- v2：取圖是全螢幕流程，沒有底部導覽。
+     v1 在三個步驟裡都保留導覽列，等於提供一個沒有標示的離開出口，而且底部同時
+     疊了「抽屜 + 按鈕列 + 導覽列」三層，能看縮圖的區域只剩四成。 -->
+<div class="app-main no-nav" id="main">
+  <div class="wz-top">
+    <button class="cancel" id="wzCancel" aria-label="離開取圖"></button>
+    <span class="wt" id="wzTitle">取圖</span>
+  </div>
+  <!-- 有文字的步驟指示（v1 是三條沒有標示的色塊）-->
+  <div class="wz-steps" id="steps"></div>
+  <div id="stage"></div>
+</div>
+
+<script src="/shared/storyboard.js"></script>
+<script src="mock-data.js"></script>
+<script src="app.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const DRAFT_KEY = 'ytspace2_capture_draft';
+const stage = document.getElementById('stage');
+const STEP_LABELS = ['貼網址', '挑畫面', '填資料'];
+
+document.getElementById('wzCancel').innerHTML = APP.svg(APP.ICONS.close, 'ic');
+document.getElementById('wzCancel').onclick = () => {
+  // v1 直接讓使用者從導覽列離開，畫面上不會說草稿有沒有留著
+  if (!W || W.step < 2) return location.href = 'home.html';
+  const sh = APP.openPanel(`
+    <div class="srow"><span class="trange">離開取圖？</span>
+      <button class="close" onclick="closeSheet()">${APP.svg(APP.ICONS.close, 'ic')}</button></div>
+    <p style="margin:0 0 var(--s4);color:var(--text-dim);font-size:var(--t-sm)">
+      已經挑好的畫面會存成草稿，下次點【取圖】可以接著做。</p>
+    <div class="btn-row">
+      <button class="btn secondary" id="ldrop">捨棄草稿</button>
+      <button class="btn primary grow2" id="lkeep">保留草稿並離開</button>
+    </div>`);
+  sh.querySelector('#lkeep').onclick = () => { saveDraft(); location.href = 'home.html'; };
+  sh.querySelector('#ldrop').onclick = () => { clearDraft(); location.href = 'home.html'; };
+};
+
+/* 由真實 id 或 JS-safe key 找到 mock 影片 */
+function findVideo(id) {
+  if (M.VIDEOS[id]) return { key: id, v: M.VIDEOS[id] };
+  for (const k in M.VIDEOS) if (M.VIDEOS[k].id === id) return { key: k, v: M.VIDEOS[k] };
+  return null;
+}
+function parseVideoId(s) {
+  s = (s || '').trim();
+  let m = s.match(/(?:youtu\.be\/|shorts\/|[?&]v=)([\w-]{11})/);
+  if (m) return m[1];
+  if (/^[\w-]{11}$/.test(s)) return s;
+  return null;
+}
+
+/* ───── 精靈狀態 ───── */
+let W = null;
+
+function paintSteps(n) {
+  document.getElementById('steps').innerHTML = STEP_LABELS.map((lb, i) => {
+    const k = i + 1;
+    return `<div class="st ${k < n ? 'done' : k === n ? 'now' : ''}">
+      <div class="bar"></div><div class="stlb">${k}. ${lb}</div></div>`;
+  }).join('');
+}
+
+function setStep(n) {
+  W.step = n;
+  paintSteps(n);
+  document.getElementById('wzTitle').textContent =
+    n === 1 ? '取圖' : (W.mode === 'meta' ? '批次編輯圖資' : W.v.title);
+  saveDraft();
+  if (n === 1) renderStep1();
+  else if (n === 2) renderStep2();
+  else renderStep3();
+  window.scrollTo(0, 0);
+}
+
+function buildItems() {
+  return [...W.selected].sort((a, b) => a - b).map(t => {
+    const f = W.frames.find(x => x.t === t);
+    return { t, url: f?.url, applied: false,
+             eventDate: '2026-08-20', place: '', tags: '', desc: '' };
+  });
+}
+
+/* ───── 草稿 ───── */
+function saveDraft() {
+  if (!W || W.mode === 'meta' || W.step < 2) return;
+  localStorage.setItem(DRAFT_KEY, JSON.stringify({
+    id: W.v.id, step: W.step, sel: [...W.selected],
+    manual: W.frames.filter(f => f.manual).map(f => f.t),
+    items: W.step === 3 ? (W.items || []).map(({ url, ref, ...rest }) => rest) : null
+  }));
+}
+function clearDraft() { localStorage.removeItem(DRAFT_KEY); }
+
+/* ───── 取圖歷史 ───── */
+const HIST_KEY = 'ytspace2_capture_history';
+function loadHistory() {
+  const saved = localStorage.getItem(HIST_KEY);
+  if (saved) return JSON.parse(saved);
+  return ['Ea8ICLXTDaU', 'Pe226YsYVWk', '8QwV1fcYtfs'].map((id, i) => ({
+    id, title: findVideo(id).v.title, n: [4, 3, 2][i], at: ['08/20', '07/12', '05/03'][i]
+  }));
+}
+function pushHistory(id, title, n) {
+  const d = new Date();
+  const at = `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+  const list = loadHistory().filter(r => r.id !== id);
+  list.unshift({ id, title, n, at });
+  localStorage.setItem(HIST_KEY, JSON.stringify(list.slice(0, 20)));
+}
+
+/* ───── 第一步：輸入網址 ───── */
+function renderStep1(err) {
+  const history = loadHistory();
+  stage.innerHTML = `
+    <div class="wz-body wz-field has-fixed-go">
+      <label for="url">貼上 YouTube 網址或 videoId</label>
+      <input type="text" id="url" placeholder="https://youtu.be/…" autocomplete="off">
+      ${err ? `<div class="wz-err">${APP.svg(APP.ICONS.close, 'ic')}<span>${err}</span></div>` : ''}
+      <label class="spaced">最近取過的影片</label>
+      <div class="wz-hist">${history.length ? history.map(r => `
+        <div class="hrow" data-id="${r.id}" role="button" tabindex="0">
+          <span class="hicon">${APP.svg(APP.ICONS.film, 'ic')}</span>
+          <span class="hbody">
+            <span class="ht">${r.title}</span>
+            <span class="hs">${r.at} ・ 取了 ${r.n} 張</span>
+          </span>
+        </div>`).join('') : '<div class="empty">還沒有取過圖</div>'}</div>
+    </div>
+    <div class="sticky-actions no-nav">
+      <button class="btn primary block" id="go">下一步</button>
+    </div>`;
+
+  const input = document.getElementById('url');
+  stage.querySelectorAll('.hrow').forEach(row => {
+    const pick = () => { input.value = 'https://youtu.be/' + row.dataset.id; go(); };
+    row.onclick = pick;
+    row.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } };
+  });
+
+  function go() {
+    const id = parseVideoId(input.value);
+    if (!id) return renderStep1('看不懂這個網址。請貼 youtu.be/… 或 youtube.com/watch?v=… 的連結。');
+    const found = findVideo(id);
+    if (!found) return renderStep1('抓不到這支影片，可能是私人影片或已被刪除（原型只支援示範影片）。');
+    startWizard(found);
+  }
+  document.getElementById('go').onclick = go;
+  input.onkeydown = e => { if (e.key === 'Enter') go(); };
+}
+
+function startWizard(found, restore) {
+  const spec = M.SB_SPECS[found.v.id];
+  const parsed = spec && window.SB ? SB.parseStoryboardSpec(spec) : null;
+  const level = parsed ? SB.pickLevel(parsed, 3) : null;
+  const iv = level ? level.intervalMs / 1000 : 0;
+  const frames = [];
+  if (level) for (let k = 0; k < level.frameCount; k++) {
+    const t = Math.round(k * iv);
+    if (t <= found.v.duration) frames.push({ t });
+  }
+  const locked = new Set(M.CLIPS.filter(c => c.videoId === found.key)
+    .map(c => Math.round(Math.round(c.start / iv) * iv || c.start)));
+  W = { key: found.key, v: found.v, level, iv, frames, locked,
+        selected: new Set(), hidden: new Set(), playT: 0, onlySel: false,
+        filtered: false, mode: params.get('mode') || '' };
+  if (restore) {
+    for (const t of restore.manual || []) W.frames.push({ t, manual: true });
+    W.frames.sort((a, b) => a.t - b.t);
+    W.selected = new Set(restore.sel);
+    if (restore.step === 3) {
+      const saved = new Map((restore.items || []).map(it => [it.t, it]));
+      W.items = buildItems().map(it => ({ ...it, ...(saved.get(it.t) || {}), url: it.url }));
+    }
+    return setStep(restore.step);
+  }
+  setStep(W.mode === 'meta' ? 3 : 2);
+}
+
+/* ───── 第二步：挑畫面 ─────
+   v1 打開就是 148 格的候選牆，【過濾相似】預設關著。
+   v2 反過來：進場先依設定的強度收斂候選，隨時可以一鍵看全部。 */
+const SIM_KEEP = { h: 5, m: 3, l: 2 };   // 每幾張留一張（mock 以時間間距模擬，正式版是 dHash）
+
+function applySimilarFilter() {
+  const step = SIM_KEEP[localStorage.getItem('ytspace2_sim_strength') || 'm'];
+  W.hidden = new Set();
+  W.frames.forEach((f, i) => { if (i % step !== 0 && !W.selected.has(f.t)) W.hidden.add(f.t); });
+  W.filtered = true;
+}
+
+function renderStep2() {
+  const noSB = !W.level;
+  if (!noSB && !W.filtered && !W.selected.size) applySimilarFilter();
+
+  stage.innerHTML = `
+    <div id="player" class="wz"></div>
+    ${noSB ? `<div class="wz-tip">${APP.svg(APP.ICONS.filter, 'ic')}
+      <span>拿不到這支影片的逐段縮圖（影片太短、直播中或剛上傳）。仍可用【手動補圖】收藏畫面。</span></div>` : ''}
+    <div class="wz-filter" id="filterBar" hidden>
+      <span class="txt" id="filterText"></span>
+      <button id="filterToggle"></button>
+    </div>
+    <div class="wz-tools">
+      <button id="tAll" ${noSB ? 'disabled' : ''}>${APP.svg(APP.ICONS.check, 'ic')} 全部選取</button>
+      <button id="tManual">${APP.svg(APP.ICONS.imagePlus, 'ic')} 手動補圖</button>
+      <button id="tOnly" class="${W.onlySel ? 'on' : ''}">${APP.svg(APP.ICONS.eye, 'ic')} 只看已選<span id="tOnlyN"></span></button>
+    </div>
+    <div id="tip1" class="wz-tip" hidden>
+      ${APP.svg(APP.ICONS.check, 'ic')}
+      <span>點一下就收藏；每格右上角的 ▶ 可以跳到那一段看看。</span>
+      <button class="x" id="tipX" aria-label="知道了">${APP.svg(APP.ICONS.close, 'ic')}</button>
+    </div>
+    <div class="wz-grid" id="grid"></div>
+    <div class="wz-foot">
+      <span class="n" id="cnt"></span>
+      <button class="btn primary" id="next" disabled>下一步</button>
+    </div>`;
+
+  if (!localStorage.getItem('ytspace2_tip_capture')) {
+    document.getElementById('tip1').hidden = false;
+    document.getElementById('tipX').onclick = () => {
+      document.getElementById('tip1').remove();
+      localStorage.setItem('ytspace2_tip_capture', '1');
+    };
+  }
+
+  const player = APP.mountPlayer(document.getElementById('player'),
+    { videoId: W.key, duration: W.v.duration, at: W.playT, onSeek: sec => { W.playT = sec; markNow(); } });
+
+  function markNow() {
+    document.querySelectorAll('.wz-cell').forEach(el => {
+      el.classList.toggle('now', Math.abs(+el.dataset.t - W.playT) < (W.iv || 2) / 2);
+    });
+  }
+
+  function syncFilterBar() {
+    const bar = document.getElementById('filterBar');
+    if (noSB) { bar.hidden = true; return; }
+    bar.hidden = false;
+    const n = W.hidden.size;
+    document.getElementById('filterText').textContent = W.filtered
+      ? `已收斂成 ${W.frames.length - n} 張候選，隱藏了 ${n} 張相似畫面`
+      : `顯示全部 ${W.frames.length} 張候選`;
+    document.getElementById('filterToggle').textContent = W.filtered ? '顯示全部' : '重新過濾';
+  }
+
+  function syncCnt() {
+    const shown = W.frames.length - (W.filtered ? W.hidden.size : 0);
+    document.getElementById('cnt').innerHTML =
+      `${shown} 張候選 · 已選 <b>${W.selected.size}</b>`;
+    document.getElementById('tOnlyN').textContent = W.selected.size ? ` ${W.selected.size}` : '';
+    document.getElementById('next').disabled = W.selected.size === 0;
+    document.getElementById('next').textContent = W.selected.size ? `下一步（${W.selected.size} 張）` : '下一步';
+    saveDraft();
+  }
+
+  function renderGrid() {
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    for (const f of W.frames) {
+      if (W.onlySel && !W.selected.has(f.t)) continue;
+      if (W.filtered && W.hidden.has(f.t)) continue;
+      const el = document.createElement('div');
+      el.className = ['wz-cell',
+        W.selected.has(f.t) ? 'sel' : '',
+        W.locked.has(f.t) ? 'locked' : '',
+        f.manual ? 'manual' : ''].join(' ').trim();
+      el.dataset.t = f.t;
+      el.style = f.url ? `background-image:url('${f.url}');background-size:cover` : M.thumbStyle(W.key, f.t);
+      el.innerHTML = `<span class="tm">${M.fmtTime(f.t)}</span>` +
+        (W.locked.has(f.t) ? '' : `<button class="peek" aria-label="跳到 ${M.fmtTime(f.t)}">${APP.svg(APP.ICONS.play, 'ic', true)}</button>`);
+
+      // 長按仍然有效，但不再是唯一入口：每格右上角有一顆看得見的 ▶
+      el.querySelector('.peek')?.addEventListener('click', e => {
+        e.stopPropagation();
+        W.playT = f.t; player.seek(f.t); markNow();
+      });
+      APP.bindPress(el, {
+        onTap: () => {
+          if (W.locked.has(f.t)) return APP.toast('這一格已經收藏過了');
+          W.selected.has(f.t) ? W.selected.delete(f.t) : W.selected.add(f.t);
+          renderGrid();
+        },
+        onHold: () => { W.playT = f.t; player.seek(f.t); markNow(); }
+      });
+      grid.appendChild(el);
+    }
+    markNow(); syncCnt(); syncFilterBar();
+  }
+
+  document.getElementById('filterToggle').onclick = () => {
+    if (W.filtered) W.filtered = false;
+    else applySimilarFilter();
+    renderGrid();
+  };
+
+  document.getElementById('tAll').onclick = () => {
+    const shown = W.frames.filter(f => !W.locked.has(f.t) && !(W.filtered && W.hidden.has(f.t)));
+    if (W.selected.size < shown.length) shown.forEach(f => W.selected.add(f.t));
+    else W.selected.clear();
+    renderGrid();
+  };
+
+  document.getElementById('tManual').onclick = () => {
+    const sh = APP.openPanel(`
+      <div class="srow"><span class="trange">手動補圖</span>
+        <button class="close" onclick="closeSheet()">${APP.svg(APP.ICONS.close, 'ic')}</button></div>
+      <div class="field"><label>時間點</label>
+        <input id="mt" type="text" value="${M.fmtTime(W.playT)}">
+        <div class="hint">已帶入播放器目前的位置</div></div>
+      <div class="field"><label>圖片</label>
+        <input id="mf" type="file" accept="image/*">
+        <div class="hint">YouTube 播放器的畫面截不到，圖要自己截、自己選</div></div>
+      <button class="btn primary block confirm" id="mok">加入這張</button>`);
+    sh.querySelector('#mok').onclick = () => {
+      const [mm, ss] = sh.querySelector('#mt').value.split(':').map(Number);
+      const t = (mm || 0) * 60 + (ss || 0);
+      const file = sh.querySelector('#mf').files[0];
+      W.frames.push({ t, manual: true, url: file ? URL.createObjectURL(file) : null });
+      W.frames.sort((a, b) => a.t - b.t);
+      W.selected.add(t);
+      closeSheet(); renderGrid();
+      APP.toast(`已補上 ${M.fmtTime(t)} 的畫面`);
+    };
+  };
+
+  document.getElementById('tOnly').onclick = (e) => {
+    W.onlySel = !W.onlySel;
+    e.currentTarget.classList.toggle('on', W.onlySel);
+    renderGrid();
+  };
+
+  document.getElementById('next').onclick = () => { W.items = buildItems(); setStep(3); };
+
+  renderGrid();
+}
+
+/* 標籤在精靈裡以字串保存（沿用既有草稿格式），編輯時轉成 chip 物件 */
+function parseTags(str) {
+  const known = M.allTags();
+  return (str || '').split(/[、,，]/).map(x => x.trim()).filter(Boolean)
+    .map(n => ({ name: n, kind: (known.find(t => t.name === n) || {}).kind || 'topic', source: 'human' }));
+}
+
+/* ───── 第三步：填資料 ─────
+   v1 的底部是三層（抽屜 + 按鈕列 + 導覽列），而且【套用】是搶眼的紅鈕、
+   【完成】是灰色外框鈕 —— 流程終點被畫成次要動作。
+   v2 收成同一塊 dock，主按鈕依「有沒有動過欄位」切換文字，
+   並把「只有動過的欄位會被套用」這條隱形規則寫在按鈕上方。 */
+function renderStep3() {
+  if (W.mode === 'meta' && !W.items) {
+    W.items = M.CLIPS.filter(c => c.videoId === W.key).map(c => ({
+      t: c.start, ref: c, applied: true,
+      eventDate: c.eventDate, place: c.place || '', tags: c.tags.map(t => t.name).join('、'), desc: c.summary || ''
+    }));
+  }
+  const sel = new Set(W.items.map((_, i) => i));   // 進場預設全選
+  const dirty = {};                                 // 這一輪抽屜被動過的欄位
+  const FIELD_LABEL = { eventDate: '時間', place: '地點', tags: '標籤', desc: '描述' };
+
+  stage.innerHTML = `
+    <div class="wz-tools">
+      <button id="qAll">全選</button><button id="qNone">全不選</button>
+      <button id="qInv">反選</button><button id="qTodo">只選未填的</button>
+    </div>
+    <div class="wz-grid step3" id="grid3"></div>
+    <div class="wz-dock">
+      <div class="meta-drawer" id="drawer" hidden>
+        <div class="dh"><span id="dTitle"></span><span class="dsub" id="dSub"></span></div>
+        <div class="field"><label for="dDate">時間（事件發生日）</label>
+          <input id="dDate" type="date">
+          <div class="hint">預設帶入 YouTube 的日期，可以改成實際拍攝日</div></div>
+        <div class="field"><label for="dPlace">地點</label>
+          <input id="dPlace" type="text" placeholder="例：宜蘭">
+          <div class="sug-label">用過的地點</div><div class="sug" id="dPlaces"></div></div>
+        <div class="field"><label>標籤</label><div class="tag-editor" id="dTags"></div></div>
+        <div class="field"><label for="dDesc">描述</label>
+          <textarea id="dDesc" rows="2" placeholder="留空，之後 AI 補"></textarea></div>
+      </div>
+      <div class="wz-diff" id="diff" hidden></div>
+      <div class="dock-foot">
+        <span class="n" id="cnt3"></span>
+        <button class="btn primary" id="mainBtn">完成</button>
+      </div>
+    </div>`;
+
+  const fields = { dDate: 'eventDate', dPlace: 'place', dDesc: 'desc' };
+  for (const id in fields) {
+    document.getElementById(id).addEventListener('input', () => { dirty[fields[id]] = true; syncMain(); });
+  }
+  let drawerTags = [];
+  APP.placeSuggest(document.getElementById('dPlaces'), document.getElementById('dPlace'),
+    () => { dirty.place = true; syncMain(); });
+
+  /* 主按鈕是情境式的：欄位動過就是【套用到 N 張】，沒動過就是【完成】 */
+  function syncMain() {
+    const changed = Object.keys(FIELD_LABEL).filter(k => dirty[k]);
+    const btn = document.getElementById('mainBtn');
+    const diff = document.getElementById('diff');
+    if (changed.length && sel.size) {
+      btn.textContent = `套用到 ${sel.size} 張`;
+      diff.hidden = false;
+      diff.innerHTML = `將更新：<b>${changed.map(k => FIELD_LABEL[k]).join('、')}</b>　其他欄位維持各張原值`;
+      btn.dataset.act = 'apply';
+    } else {
+      btn.textContent = '完成';
+      diff.hidden = true;
+      btn.dataset.act = 'finish';
+    }
+  }
+
+  function fillDrawer() {
+    const drawer = document.getElementById('drawer');
+    document.getElementById('grid3').classList.toggle('has-drawer', !!sel.size);
+    drawer.hidden = !sel.size;
+    if (!sel.size) { syncMain(); return; }
+    const list = [...sel].map(i => W.items[i]);
+    document.getElementById('dTitle').textContent = `套用到已選的 ${sel.size} 張`;
+    document.getElementById('dSub').textContent = sel.size === 1 ? M.fmtTime(list[0].t) : '';
+
+    const tagVals = new Set(list.map(x => x.tags));
+    const host = document.getElementById('dTags');
+    host.dataset.mixed = tagVals.size === 1 ? '0' : '1';
+    drawerTags = tagVals.size === 1 ? parseTags([...tagVals][0]) : [];
+    dirty.tags = false;
+    APP.tagEditor(host, drawerTags, next => { drawerTags = next; dirty.tags = true; syncMain(); });
+
+    for (const [id, key] of Object.entries(fields)) {
+      const el = document.getElementById(id);
+      const vals = new Set(list.map(x => x[key]));
+      el.classList.remove('mix');
+      if (vals.size === 1) { el.value = [...vals][0]; el.placeholder = ''; }
+      else { el.value = ''; el.classList.add('mix'); el.placeholder = '〈多個值〉'; }
+      dirty[key] = false;
+    }
+    syncMain();
+  }
+
+  function renderGrid3() {
+    const grid = document.getElementById('grid3');
+    grid.innerHTML = '';
+    W.items.forEach((it, i) => {
+      const el = document.createElement('div');
+      el.className = ['wz-cell', sel.has(i) ? 'sel' : '', it.applied ? 'done' : ''].join(' ').trim();
+      el.style = it.url ? `background-image:url('${it.url}');background-size:cover` : M.thumbStyle(W.key, it.t);
+      el.innerHTML = `<span class="tm">${M.fmtTime(it.t)}</span>` +
+        (it.applied ? `<span class="done-mark" title="已填圖資">${APP.svg(APP.ICONS.fileCheck, 'ic')}</span>` : '');
+      el.onclick = () => { sel.has(i) ? sel.delete(i) : sel.add(i); renderGrid3(); };
+      grid.appendChild(el);
+    });
+    const todo = W.items.filter(x => !x.applied).length;
+    document.getElementById('cnt3').textContent =
+      todo ? `${W.items.length} 張 ・ 還有 ${todo} 張沒填` : `${W.items.length} 張都填好了`;
+    fillDrawer();
+  }
+
+  document.getElementById('qAll').onclick = () => { W.items.forEach((_, i) => sel.add(i)); renderGrid3(); };
+  document.getElementById('qNone').onclick = () => { sel.clear(); renderGrid3(); };
+  document.getElementById('qInv').onclick = () => { W.items.forEach((_, i) => sel.has(i) ? sel.delete(i) : sel.add(i)); renderGrid3(); };
+  document.getElementById('qTodo').onclick = () => { sel.clear(); W.items.forEach((it, i) => { if (!it.applied) sel.add(i); }); renderGrid3(); };
+
+  function apply() {
+    for (const i of sel) {
+      const it = W.items[i];
+      for (const [id, key] of Object.entries(fields)) if (dirty[key]) it[key] = document.getElementById(id).value;
+      if (dirty.tags) it.tags = drawerTags.map(t => t.name).join('、');
+      it.applied = true;
+      if (it.ref) {
+        it.ref.eventDate = it.eventDate; it.ref.place = it.place; it.ref.summary = it.desc;
+        it.ref.tags = it.tags.split(/[、,，]/).map(x => x.trim()).filter(Boolean)
+          .map(n => it.ref.tags.find(t => t.name === n) || { name: n, kind: 'topic', source: 'human' });
+      }
+    }
+    const n = sel.size;
+    sel.clear(); renderGrid3(); saveDraft();
+    APP.toast(`已套用到 ${n} 張`);
+  }
+
+  function finish() {
+    const todo = W.items.filter(x => !x.applied).length;
+    if (todo && !confirm(`還有 ${todo} 張沒填資料，仍要完成嗎？（描述可以留空）`)) return;
+    if (W.mode === 'meta') { clearDraft(); return location.href = `detail.html?v=${W.key}`; }
+    W.items.forEach((it, i) => {
+      M.CLIPS.push({
+        id: 'n' + Date.now().toString(36) + i, videoId: W.key,
+        start: it.t, end: it.t, eventDate: it.eventDate || '2026-08-20', status: 'reviewed',
+        summary: it.desc, note: '', place: it.place,
+        tags: it.tags.split(/[、,，]/).map(x => x.trim()).filter(Boolean).map(n => ({ name: n, kind: 'topic', source: 'human' }))
+      });
+    });
+    clearDraft();
+    pushHistory(W.v.id, W.v.title, W.items.length);
+    sessionStorage.setItem('ytspace2_toast', `已新增 ${W.items.length} 張`);
+    sessionStorage.setItem('ytspace2_jump', (W.items[0].eventDate || '2026-08').slice(0, 7));
+    location.href = 'home.html';
+  }
+
+  document.getElementById('mainBtn').onclick = e =>
+    e.currentTarget.dataset.act === 'apply' ? apply() : finish();
+
+  renderGrid3();
+}
+
+/* ───── 入口 ───── */
+const preset = params.get('v');
+if (preset) {
+  const found = findVideo(preset);
+  found ? startWizard(found) : (paintSteps(1), renderStep1('找不到這支影片'));
+} else {
+  const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
+  if (draft && findVideo(draft.id)) {
+    const found = findVideo(draft.id);
+    paintSteps(1);
+    stage.innerHTML = `<div class="draft-ask">
+      <div class="t">上次《${found.v.title}》做到「${STEP_LABELS[draft.step - 1]}」，要接著做嗎？</div>
+      <div class="btn-row">
+        <button class="btn secondary" id="dNew">重新開始</button>
+        <button class="btn primary grow2" id="dGo">繼續</button>
+      </div></div>`;
+    document.getElementById('dGo').onclick = () => startWizard(found, draft);
+    document.getElementById('dNew').onclick = () => { clearDraft(); paintSteps(1); renderStep1(); };
+  } else { paintSteps(1); renderStep1(); }
+}
+</script>
+</body>
+</html>

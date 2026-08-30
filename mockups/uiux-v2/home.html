@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>yt-space · 首頁</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app-main">
+  <!-- v1 把「某月以前」的篩選器當成頂列的常駐主控制項，預設開著、會隱藏較新的內容。
+       v2 預設是完整時間軸，篩選收進右上角的圖示鈕，啟用時才出現可清除的狀態列。 -->
+  <div class="topbar">
+    <span class="title">收藏</span>
+    <button class="icon-btn" id="filterBtn" aria-label="依時間篩選"></button>
+  </div>
+
+  <div class="filter-bar" id="filterBar" hidden>
+    <span id="filterIcon"></span>
+    <span class="txt" id="filterText"></span>
+    <button class="clear" id="filterClear" aria-label="清除時間篩選"></button>
+  </div>
+
+  <div class="grid-scroll" id="grid"></div>
+  <div class="empty" id="empty" hidden></div>
+</div>
+
+<div id="nav"></div>
+
+<script src="/shared/storyboard.js"></script>
+<script src="mock-data.js"></script>
+<script src="app.js"></script>
+<script>
+  document.getElementById('nav').innerHTML = APP.renderNav('home');
+  document.getElementById('filterBtn').innerHTML = APP.svg(APP.ICONS.calendar, 'ic');
+  document.getElementById('filterIcon').innerHTML = APP.svg(APP.ICONS.calendar, 'ic');
+  document.getElementById('filterClear').innerHTML = APP.svg(APP.ICONS.close, 'ic');
+
+  const reviewed = M.CLIPS.filter(c => c.status === 'reviewed')
+    .sort((a, b) => b.eventDate.localeCompare(a.eventDate));
+
+  const grid = document.getElementById('grid');
+  const LS_KEY = 'ytspace2_home_upto';
+  let upTo = localStorage.getItem(LS_KEY) || '';   // 預設＝不篩選（v1 預設是本月）
+
+  /* 依當月張數決定欄數：1 張給整寬大圖，2–4 張兩欄，5 張以上三欄。
+     v1 一律三欄，於是每月只有一張圖時右邊三分之二是空的。 */
+  function layoutFor(n) {
+    if (n === 1) return { cls: 'c1', cap: 'full' };
+    if (n <= 4) return { cls: 'c2', cap: 'compact' };
+    return { cls: 'c3', cap: 'none' };
+  }
+
+  function tileHtml(c, cap) {
+    const thumb = `<div class="thumb"><div class="sb-frame" style="${M.thumbStyle(c.videoId, c.start)}" role="img" aria-label="${c.summary || '片段縮圖'}"></div></div>`;
+    if (cap === 'none') return thumb;
+    const tags = APP.top2Tags(c).map(f => APP.tagChip(f)).join('');
+    const desc = c.summary
+      ? `<div class="desc">${c.summary}</div>`
+      : `<div class="desc dim">還沒有描述</div>`;
+    return `${thumb}<div class="cap">${desc}${tags ? `<div class="tile-tags">${tags}</div>` : ''}</div>`;
+  }
+
+  function render() {
+    grid.innerHTML = '';
+    const list = reviewed.filter(c => !upTo || c.eventDate.slice(0, 7) <= upTo);
+
+    const emptyEl = document.getElementById('empty');
+    emptyEl.hidden = list.length > 0;
+    if (!list.length) {
+      emptyEl.innerHTML = `${APP.svg(APP.ICONS.calendar, 'ic')}
+        <div>這個時間點以前沒有收藏</div>
+        <button class="btn secondary" id="emptyClear">清除時間篩選</button>`;
+      document.getElementById('emptyClear').onclick = clearFilter;
+      return;
+    }
+
+    // 先分組，才知道每一組有幾張、要用幾欄
+    const groups = [];
+    for (const c of list) {
+      const key = c.eventDate.slice(0, 7);
+      let g = groups[groups.length - 1];
+      if (!g || g.key !== key) { g = { key, label: M.fmtMonthLabel(c.eventDate), items: [] }; groups.push(g); }
+      g.items.push(c);
+    }
+
+    const flat = [];   // Lightbox 的左右滑動範圍 = 目前顯示中的清單
+    for (const g of groups) {
+      const { cls, cap } = layoutFor(g.items.length);
+      const el = document.createElement('div');
+      el.className = 'date-group';
+      el.innerHTML = `<h2>${g.label}<span class="cnt">${g.items.length} 張</span></h2>
+        <div class="month-tags"></div>
+        <div class="tiles ${cls}"></div>`;
+      grid.appendChild(el);
+
+      // 月份標籤：v1 是會被切在字中間的橫向捲動列，v2 換行排
+      const tagMap = new Map();
+      for (const c of g.items) for (const f of M.shotFacets(c)) if (!tagMap.has(M.facetKey(f))) tagMap.set(M.facetKey(f), f);
+      const tagsEl = el.querySelector('.month-tags');
+      tagsEl.innerHTML = [...tagMap.values()].map(f => APP.tagChip(f, { key: M.facetKey(f) })).join('');
+      tagsEl.querySelectorAll('.chip').forEach(chip => chip.addEventListener('click', () => {
+        const facet = chip.dataset.key.split(':')[0];
+        location.href = `tags.html?${facet === 'place' ? 'places' : 'tags'}=${encodeURIComponent(chip.dataset.name)}&upto=${g.key}`;
+      }));
+
+      const tilesEl = el.querySelector('.tiles');
+      for (const c of g.items) {
+        const idx = flat.length; flat.push(c);
+        const tile = document.createElement('button');
+        tile.type = 'button';
+        // v1 的 tile 是 <div>，鍵盤到不了；v2 用真的 button
+        tile.className = 'tile' + (cap === 'compact' ? ' compact' : '') + (cap === 'none' ? ' square' : '');
+        tile.innerHTML = tileHtml(c, cap);
+        tile.addEventListener('click', () => APP.openLightbox(flat, idx, { onChange: render }));
+        tilesEl.appendChild(tile);
+      }
+    }
+  }
+
+  /* 篩選：只保留該月（含）以前的資料 */
+  function applyFilter(key) {
+    upTo = key;
+    localStorage.setItem(LS_KEY, key);
+    syncFilterBar();
+    render();
+    window.scrollTo({ top: 0 });
+  }
+  function clearFilter() {
+    upTo = '';
+    localStorage.removeItem(LS_KEY);
+    syncFilterBar();
+    render();
+  }
+  function syncFilterBar() {
+    const bar = document.getElementById('filterBar');
+    bar.hidden = !upTo;
+    if (upTo) document.getElementById('filterText').textContent = `只顯示 ${APP.monthLabel(upTo)} 以前的收藏`;
+  }
+  document.getElementById('filterClear').onclick = clearFilter;
+  document.getElementById('filterBtn').onclick = () => APP.openMonthPicker({
+    value: upTo, title: '只顯示這個月以前',
+    onPick: applyFilter,
+    onClear: clearFilter
+  });
+
+  history.scrollRestoration = 'manual';
+  syncFilterBar();
+  render();
+
+  // 取圖完成後導回：跳到新圖所在月份並顯示「已新增 N 張」
+  const jump = sessionStorage.getItem('ytspace2_jump');
+  if (jump) {
+    sessionStorage.removeItem('ytspace2_jump');
+    const target = [...document.querySelectorAll('.date-group')]
+      .find(el => el.querySelector('h2').textContent.startsWith(APP.monthLabel(jump)));
+    target?.scrollIntoView({ block: 'start' });
+  }
+  const done = sessionStorage.getItem('ytspace2_toast');
+  if (done) { sessionStorage.removeItem('ytspace2_toast'); APP.toast(done); }
+</script>
+</body>
+</html>

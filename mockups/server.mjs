@@ -125,7 +125,8 @@ a{display:block;padding:14px 16px;margin:10px 0;border:1px solid #ccd;border-rad
 text-decoration:none;color:#224}a:hover{background:#f4f6ff}b{display:block;font-size:16px}
 small{color:#667}</style></head><body>
 <h1>yt-space mockups</h1>
-<a href="/uiux/home.html"><b>UI 排版驗收原型</b><small>假資料，驗收版面與互動 · 另有驗收操作手冊</small></a>
+<a href="/uiux/home.html"><b>UI 原型 v1</b><small>假資料，驗收版面與互動 · 另有驗收操作手冊</small></a>
+<a href="/uiux-v2/home.html"><b>UI 原型 v2</b><small>依 UI/UX 體檢報告改版：token 尺標、單一主色、全螢幕取圖流程、暗色模式</small></a>
 <a href="/probe/"><b>storyboard 縮圖探測工具</b><small>打真的 YouTube，驗證縮圖解析與儲存量試算</small></a>
 <a href="/uiux/%E9%A9%97%E6%94%B6%E6%93%8D%E4%BD%9C%E6%89%8B%E5%86%8A.md"><b>驗收操作手冊</b><small>逐頁檢查清單</small></a>
 </body></html>`;
@@ -207,6 +208,7 @@ createServer(async (req, res) => {
   }
 }).listen(PORT, () => {
   console.log(`  mockups   → http://localhost:${PORT}/`);
-  console.log(`  UI 原型   → http://localhost:${PORT}/uiux/home.html`);
+  console.log(`  UI 原型 v1 → http://localhost:${PORT}/uiux/home.html`);
+  console.log(`  UI 原型 v2 → http://localhost:${PORT}/uiux-v2/home.html`);
   console.log(`  探測工具  → http://localhost:${PORT}/probe/`);
 });
