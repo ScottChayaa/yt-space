@@ -273,7 +273,7 @@ function mountPlayer(host, opts) {
    host.dataset.mixed='1' 代表多張圖的值不一致，先顯示〈多個值〉，動過才開始收集。*/
 function tagEditor(host, tags, onChange) {
   let list = tags.map(t => ({ ...t }));
-  let open = false;
+  let open = false, newKind = 'topic';
   const isMixed = () => host.dataset.mixed === '1';
   function touched() { host.dataset.mixed = '0'; onChange?.(list); }
 
@@ -292,10 +292,10 @@ function tagEditor(host, tags, onChange) {
           : '<span class="te-hint">既有標籤都加過了</span>'}</div>
         <div class="te-new">
           <input type="text" class="te-name" placeholder="新標籤">
-          <select class="te-kind">${Object.entries(KIND).filter(([k]) => k !== 'place')
-            .map(([k, v]) => `<option value="${k}" ${k === 'topic' ? 'selected' : ''}>${v.label}</option>`).join('')}</select>
           <button type="button" class="te-ok">新增</button>
         </div>
+        <div class="icon-pick te-kind">${Object.entries(KIND).filter(([k]) => k !== 'place')
+          .map(([k, v]) => `<button type="button" class="${k === newKind ? 'on' : ''}" data-kind="${k}">${kindSvg(k)}<span>${v.label}</span></button>`).join('')}</div>
       </div>` : ''}`;
 
     host.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
@@ -312,9 +312,14 @@ function tagEditor(host, tags, onChange) {
       const name = host.querySelector('.te-name').value.trim();
       if (!name || list.some(t => t.name === name)) return;
       if (isMixed()) list = [];
-      list.push({ name, kind: host.querySelector('.te-kind').value, source: 'human' });
+      list.push({ name, kind: newKind, source: 'human' });
       touched(); render();
     };
+    // 新標籤要用哪個圖示（沿用設定頁「顯示圖示」的挑選方式）
+    host.querySelectorAll('.te-kind button').forEach(b => b.onclick = () => {
+      newKind = b.dataset.kind;
+      host.querySelectorAll('.te-kind button').forEach(x => x.classList.toggle('on', x === b));
+    });
   }
   render();
 }
@@ -335,11 +340,8 @@ function placeSuggest(host, input, onPick) {
 function openShotSheet(shot, onSave) {
   const v = M.videoOf(shot);
   const beforeMonth = shot.eventDate.slice(0, 7);
-  // ⚠ 只在日期還是 YT 上傳日時提醒；來自拍攝日或使用者改過就不再嚇人
-  const dateNote = shot.dateSrc === 'recorded'
-    ? '<div class="src-line">來自 YT 拍攝日</div>'
-    : shot.dateSrc === 'user' ? ''
-    : '<div class="warn-line">⚠ 這是 YT 上傳日，可能不是實際拍攝日</div>';
+  // 只有真的來自 YT 拍攝日才標示；其餘（上傳日、使用者改過）都不加註解
+  const dateNote = shot.dateSrc === 'recorded' ? '<div class="src-line">來自 YT 拍攝日</div>' : '';
   const sh = openPanel(`
     <div class="srow">
       <span class="trange">${M.fmtTime(shot.start)} ・ 《${v.title.slice(0, 16)}…》</span>

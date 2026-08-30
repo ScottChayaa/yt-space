@@ -298,8 +298,10 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .tag-editor .te-pool .chip { cursor: pointer; }
 .tag-editor .te-hint { font-size: 0.76rem; color: var(--text-dim); }
 .tag-editor .te-new { display: flex; gap: 6px; margin-top: 9px; }
+.tag-editor .icon-pick { margin-top: 7px; }
+.tag-editor .icon-pick button { padding: 5px 9px; font-size: 0.78rem; }
 .tag-editor .te-new .te-name { flex: 1; min-width: 0; }
-.tag-editor .te-new input, .tag-editor .te-new select { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 7px 9px; font-size: 0.82rem; color: var(--text); font-family: inherit; }
+.tag-editor .te-new input { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 7px 9px; font-size: 0.82rem; color: var(--text); font-family: inherit; }
 .tag-editor .te-new .te-ok { border: none; border-radius: 8px; padding: 0 12px; background: var(--accent); color: #fff; font-size: 0.82rem; }
 
 /* 地點建議 */
