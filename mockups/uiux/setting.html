@@ -81,17 +81,24 @@
       <div class="srow"><span class="trange">${name}</span>
         <button class="close" onclick="closeSheet()">${APP.svg(APP.ICONS.close, 'ic')}</button></div>
       <div class="field"><label>名稱</label><input id="tgName" type="text" value="${name}"></div>
-      <div class="field"><label>分類</label>
-        <select id="tgKind" class="sel wide">${Object.entries(APP.KIND).filter(([x]) => x !== 'place')
-          .map(([x, v]) => `<option value="${x}" ${x === tag.kind ? 'selected' : ''}>${v.label}</option>`).join('')}</select></div>
+      <div class="field"><label>顯示圖示</label>
+        <div class="icon-pick" id="tgKind">${Object.entries(APP.KIND).filter(([x]) => x !== 'place')
+          .map(([x, v]) => `<button type="button" class="${x === tag.kind ? 'on' : ''}" data-k="${x}">${APP.kindSvg(x)}<span>${v.label}</span></button>`).join('')}</div></div>
       <div class="field"><label>別名（逗號分隔，檢索時視同本名）</label>
         <input id="tgAlias" type="text" placeholder="例：我家的貓、橘貓"></div>
-      <button class="confirm" id="tgSave">✓ 儲存</button>
-      <button class="act-row danger" id="tgDel">${APP.svg(APP.ICONS.trash, 'ic')} 刪除這個標籤</button>`);
+      <div class="btn-row">
+        <button class="btn ghost danger" id="tgDel">${APP.svg(APP.ICONS.trash, 'ic')} 刪除</button>
+        <button class="btn primary" id="tgSave">${APP.svg(APP.ICONS.check, 'ic')} 儲存</button>
+      </div>`);
+
+    let kind = tag.kind;
+    sh.querySelectorAll('#tgKind button').forEach(b => b.onclick = () => {
+      kind = b.dataset.k;
+      sh.querySelectorAll('#tgKind button').forEach(x => x.classList.toggle('on', x === b));
+    });
 
     sh.querySelector('#tgSave').onclick = () => {
       const next = sh.querySelector('#tgName').value.trim();
-      const kind = sh.querySelector('#tgKind').value;
       if (!next) return;
       for (const c of M.CLIPS) for (const t of c.tags) if (t.name === name) { t.name = next; t.kind = kind; }
       closeSheet(); APP.toast('已更新'); renderTags();

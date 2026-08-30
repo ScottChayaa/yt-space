@@ -290,11 +290,11 @@ shot ── 使用者從影片挑出的單一畫面（本系統的第一級公�
   ├─ ai_raw          （v2）AI 原始輸出的 JSON 快照，唯讀，供「還原成 AI 原版」；v1 恆為 null
   └─ created_at      這張 shot 入庫的時間
 
-tag ── 標籤與暱稱（人／寵物／主題；地點已獨立成 shot.place，不在此）
+tag ── 標籤與暱稱（人／動物／主題；地點已獨立成 shot.place，不在此）
   ├─ id              流水號（PK）
   ├─ owner_id        擁有者識別
   ├─ name            標籤顯示名，如 "小橘" / "露營" / "阿明"
-  ├─ kind            分類：'person'（人）| 'pet'（寵物）| 'topic'（主題）| 'other'（其他）
+  ├─ kind            分類：'person'（人）| 'pet'（動物）| 'topic'（主題）| 'other'（其他）；UI 顯示為「顯示圖示」
   └─ aliases         別名 JSON 陣列，如 ["我家的貓","橘貓"]；檢索時視同 name
 
 shot_tag ── shot 與 tag 的多對多關聯

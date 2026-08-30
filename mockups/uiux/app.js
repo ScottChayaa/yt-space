@@ -37,7 +37,7 @@ const KIND = {
   person: { icon: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>', color: '#6366F1', label: '人物' },
   place:  { icon: '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>', color: '#0EA5E9', label: '地點' },
   topic:  { icon: '<line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/>', color: '#8B5CF6', label: '主題' },
-  pet:    { icon: '<circle cx="6" cy="13" r="1.6"/><circle cx="9.5" cy="8.5" r="1.6"/><circle cx="14.5" cy="8.5" r="1.6"/><circle cx="18" cy="13" r="1.6"/><path d="M12 13.5c-2.3 0-4 1.9-4 3.8A2.2 2.2 0 0 0 10.2 19c.8 0 1.1-.4 1.8-.4s1 .4 1.8.4A2.2 2.2 0 0 0 16 17.3c0-1.9-1.7-3.8-4-3.8z"/>', color: '#F59E0B', label: '寵物' },
+  pet:    { icon: '<circle cx="11" cy="4.5" r="1.9"/><circle cx="17.7" cy="8" r="1.9"/><circle cx="19.6" cy="15.4" r="1.9"/><path d="M9.2 10.2a4.8 4.8 0 0 1 4.8 4.8v3.3a3.3 3.3 0 0 1-6.5 1Q6.5 17.4 4.6 16.8a3.3 3.3 0 0 1 1-6.6z"/>', color: '#F59E0B', label: '動物' },
   other:  { icon: '<path d="M12 3 21 12 12 21 3 12z"/>', color: '#64748B', label: '其他' }
 };
 function kindSvg(kind) {
