@@ -11,6 +11,7 @@
   <div class="topbar">
     <button class="back" id="backBtn" hidden aria-label="改條件"></button>
     <span class="title" id="pageTitle">查詢</span>
+    <button class="icon-btn" id="histBtn" aria-label="最近查詢"></button>
   </div>
 
   <!-- ── 條件區 ── -->
@@ -18,6 +19,13 @@
     <div class="qtabs">
       <button id="tabTag" class="on">標籤與地點</button>
       <button id="tabText">描述</button>
+    </div>
+
+    <!-- 沿用上次查詢：進頁就把條件填好，一行淡字說明 -->
+    <div class="reuse-note" id="reuseNote" hidden>
+      <span id="reuseIcon"></span>
+      <span id="reuseText"></span>
+      <button class="rx" id="reuseClear">清除</button>
     </div>
 
     <div class="qfield">
@@ -61,6 +69,8 @@
 <script>
   document.getElementById('nav').innerHTML = APP.renderNav('tags');
   document.getElementById('backBtn').innerHTML = APP.svg(APP.ICONS.back, 'ic');
+  document.getElementById('histBtn').innerHTML = APP.svg(APP.ICONS.history, 'ic');
+  document.getElementById('reuseIcon').innerHTML = APP.svg(APP.ICONS.history, 'ic');
   document.getElementById('textBox').insertAdjacentHTML('afterbegin', APP.svg(APP.ICONS.search, 'ic'));
 
   const REVIEWED = M.CLIPS.filter(c => c.status === 'reviewed');
@@ -88,6 +98,102 @@
   }
   document.getElementById('tabTag').onclick = () => setMode('tag');
   document.getElementById('tabText').onclick = () => setMode('text');
+
+  /* ── 最近查詢 ──
+     進頁沿用最近一筆（只填條件、不自動查），其餘幾筆收在頂列的歷史鈕裡。
+     兩欄清單那版把主要控制項擠到下面，而且和標籤雲講同一組詞、卻用兩種視覺語言。 */
+  const RQ_KEY = 'ytspace2_recent_q';
+  const RQ_MAX = 6;
+  // 原型先塞幾筆，讓還沒查過的狀態也看得到這個功能
+  const RQ_SEED = [
+    { mode: 'tag',  upTo: '',        keys: ['tag:夜潛', 'place:加勒比海'] },
+    { mode: 'text', upTo: '',        q: '沙灘' },
+    { mode: 'tag',  upTo: '2026-07', keys: ['tag:螺螄粉'] },
+    { mode: 'tag',  upTo: '',        keys: ['tag:露營'] }
+  ];
+
+  function loadRecent() {
+    try {
+      const v = JSON.parse(localStorage.getItem(RQ_KEY));
+      return Array.isArray(v) ? v : RQ_SEED;
+    } catch { return RQ_SEED; }
+  }
+  const saveRecent = list => localStorage.setItem(RQ_KEY, JSON.stringify(list.slice(0, RQ_MAX)));
+  const rqSig = e => JSON.stringify([e.mode, e.upTo || '', [...(e.keys || [])].sort(), e.q || '']);
+
+  function pushRecent(entry) {
+    saveRecent([entry, ...loadRecent().filter(e => rqSig(e) !== rqSig(entry))]);
+  }
+
+  const rqLabel = e => e.mode === 'text'
+    ? `「${e.q}」`
+    : (e.keys || []).map(k => k.split(':').slice(1).join(':')).join('、');
+  const rqSub = e => e.upTo ? APP.monthLabel(e.upTo) + ' 以前' : '全部日期';
+
+  /* 把一筆紀錄還原成目前的條件；run=true 時順便查 */
+  function applyRecent(e, run) {
+    upTo = e.upTo || '';
+    selected.clear();
+    for (const k of e.keys || []) selected.add(k);
+    document.getElementById('textInput').value = e.mode === 'text' ? (e.q || '') : '';
+    setMode(e.mode);
+    syncDate();
+    renderTags();
+    if (run) runSearch();
+  }
+
+  /* 目前條件的快照，拿來存紀錄與比對「有沒有被改過」 */
+  const currentEntry = () => mode === 'tag'
+    ? { mode: 'tag', upTo, keys: [...selected] }
+    : { mode: 'text', upTo, q: document.getElementById('textInput').value.trim() };
+
+  /* 沿用提示：只有在條件確實是從紀錄帶進來、且使用者還沒動過時才顯示 */
+  let reused = null;
+  function syncReuse() {
+    const note = document.getElementById('reuseNote');
+    const still = reused && rqSig(reused) === rqSig(currentEntry());
+    note.hidden = !still;
+    if (still) document.getElementById('reuseText').textContent = `沿用上次查詢：${rqLabel(reused)}`;
+  }
+  function clearConditions() {
+    reused = null;
+    selected.clear();
+    document.getElementById('textInput').value = '';
+    upTo = '';
+    syncDate();
+    renderTags();
+  }
+  document.getElementById('reuseClear').onclick = clearConditions;
+
+  /* 歷史抽屜：一筆一列，右側 ✕ 單筆刪除 */
+  function openHistory() {
+    const list = loadRecent();
+    const sh = APP.openPanel(`
+      <div class="srow"><span class="trange">最近查詢</span>
+        <button class="close" onclick="closeSheet()">${APP.svg(APP.ICONS.close, 'ic')}</button></div>
+      <div id="histList"></div>`);
+    const el = sh.querySelector('#histList');
+    if (!list.length) { el.innerHTML = '<div class="recent-empty">還沒有查詢紀錄</div>'; return; }
+    list.forEach((e, i) => {
+      const row = document.createElement('div');
+      row.className = 'recent-row';
+      row.innerHTML = `
+        <button class="rgo" type="button">${APP.svg(APP.ICONS.history, 'ic')}
+          <span class="rt"><span class="rl">${rqLabel(e)}</span><span class="rs">${rqSub(e)}</span></span>
+        </button>
+        <button class="rdel" type="button" aria-label="刪除這筆紀錄">${APP.svg(APP.ICONS.close, 'ic')}</button>`;
+      row.querySelector('.rgo').onclick = () => { closeSheet(); applyRecent(e, true); };
+      row.querySelector('.rdel').onclick = () => {
+        const next = loadRecent();
+        next.splice(i, 1);
+        saveRecent(next);
+        closeSheet();
+        openHistory();
+      };
+      el.appendChild(row);
+    });
+  }
+  document.getElementById('histBtn').onclick = openHistory;
 
   /* ── 標籤雲：選了就打勾（不只靠顏色）── */
   function renderTags() {
@@ -118,6 +224,7 @@
       go.disabled = !q;
       go.textContent = '查詢';
     }
+    syncReuse();
   }
   document.getElementById('textInput').addEventListener('input', syncGo);
 
@@ -160,6 +267,7 @@
     document.getElementById('actions').hidden = false;
     document.getElementById('main').classList.add('with-actions');
     document.getElementById('backBtn').hidden = true;
+    document.getElementById('histBtn').hidden = false;
     document.getElementById('pageTitle').textContent = '查詢';
     renderTags();
   }
@@ -171,7 +279,10 @@
     document.getElementById('main').classList.remove('with-actions');
     document.getElementById('results').hidden = false;
     document.getElementById('backBtn').hidden = false;
+    document.getElementById('histBtn').hidden = true;
     document.getElementById('pageTitle').textContent = '查詢結果';
+    pushRecent(currentEntry());
+    reused = null;   // 條件已經是使用者自己按下查詢的，不再是「沿用」
     renderResults();
   }
 
@@ -216,6 +327,12 @@
 
   syncDate();
   renderTags();
+  // 沒有從 URL 帶條件進來時，沿用最近一筆（只填條件，不自動查）
+  if (!autoRun) {
+    const last = loadRecent()[0];
+    if (last) { reused = last; applyRecent(last, false); }
+  }
+  syncReuse();
   if (autoRun) runSearch();
 </script>
 </body>

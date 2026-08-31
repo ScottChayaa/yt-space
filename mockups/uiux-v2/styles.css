@@ -791,6 +791,39 @@ button { cursor: pointer; background: none; border: none; padding: 0; }
 .tag-cloud .chip { cursor: pointer; }
 .month-tags .chip, .rs-cond .chip { cursor: pointer; }
 
+/* 沿用上次查詢：分頁列下的一行淡字，不佔版面也不搶主要動作 */
+.reuse-note {
+  display: flex; align-items: center; gap: var(--s2);
+  padding: var(--s2) var(--s4) 0;
+  font-size: var(--t-xs); color: var(--text-dim);
+}
+.reuse-note .ic { width: 14px; height: 14px; color: var(--text-faint); }
+.reuse-note .rx { color: var(--accent); font-size: var(--t-xs); padding: var(--s1) 0; }
+.reuse-note .rx:active { opacity: 0.7; }
+
+/* 最近查詢抽屜：一筆一列，右側可單筆刪除 */
+.recent-row {
+  display: flex; align-items: center; gap: var(--s3);
+  width: 100%; min-height: var(--tap); padding: var(--s2) 0;
+  border-bottom: 1px solid var(--border); text-align: left;
+}
+.recent-row .ic { width: 16px; height: 16px; color: var(--text-faint); }
+.recent-row .rt { flex: 1; min-width: 0; display: grid; }
+.recent-row .rl {
+  font-size: var(--t-xs); font-weight: var(--w-medium);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.recent-row .rs { font-size: var(--t-xs); color: var(--text-dim); }
+.recent-row .rgo { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--s3); text-align: left; }
+.recent-row .rdel {
+  display: flex; align-items: center; justify-content: center; flex: none;
+  width: var(--tap); height: var(--tap); margin-right: calc(var(--s2) * -1);
+  color: var(--text-faint); border-radius: var(--r-sm);
+}
+.recent-row .rdel .ic { width: 16px; height: 16px; }
+.recent-row .rdel:active { background: var(--surface-2); }
+.recent-empty { font-size: var(--t-sm); color: var(--text-dim); padding: var(--s4) 0; }
+
 /* 查詢結果直接接在同一頁（v1 要跳到另一個頁面）*/
 .rs-head { padding: var(--s3) var(--s4) 0; }
 .rs-cond { display: flex; flex-wrap: wrap; gap: var(--s2); }
