@@ -11,7 +11,6 @@
   <div class="topbar">
     <span class="title">分類</span>
     <button class="icon-btn" id="filterBtn" aria-label="篩選分類名稱"></button>
-    <button class="icon-btn" id="sortBtn" aria-label="排序方式"></button>
     <button class="more accent" id="add" aria-label="新增資料夾"></button>
   </div>
 
@@ -21,6 +20,12 @@
       <input id="searchInput" placeholder="搜尋分類名稱" autocomplete="off">
     </div>
     <button class="btn quiet" id="searchCancel">取消</button>
+  </div>
+
+  <!-- 狀態列：數量 ＋ 目前排序。排序不做成圖示，因為箭頭圖示說不出「現在怎麼排」 -->
+  <div class="fd-status">
+    <span id="statCount"></span>
+    <button class="sortpick" id="sortBtn"></button>
   </div>
 
   <div class="fd-grid" id="list"></div>
@@ -36,7 +41,6 @@
 document.getElementById('nav').innerHTML = APP.renderNav('folders');
 document.getElementById('add').innerHTML = APP.svg(APP.ICONS.folderPlus, 'ic');
 document.getElementById('filterBtn').innerHTML = APP.svg(APP.ICONS.search, 'ic');
-document.getElementById('sortBtn').innerHTML = APP.svg(APP.ICONS.sort, 'ic');
 document.getElementById('searchBox').insertAdjacentHTML('afterbegin', APP.svg(APP.ICONS.search, 'ic'));
 
 const list = document.getElementById('list');
@@ -111,6 +115,12 @@ function render() {
     card.addEventListener('click', () => location.href = `folder.html?id=${f.id}`);
     list.appendChild(card);
   });
+
+  // 狀態列：篩選中改成「符合 N 個」，順便當作篩選有沒有生效的回饋
+  document.getElementById('statCount').textContent =
+    query ? `符合 ${folders.length} 個` : `${folders.length} 個分類`;
+  document.getElementById('sortBtn').innerHTML =
+    `<span>${SORTS[sortBy].label}</span>${APP.svg(APP.ICONS.chevronDown, 'ic')}`;
 
   const emptyEl = document.getElementById('empty');
   emptyEl.hidden = folders.length > 0;

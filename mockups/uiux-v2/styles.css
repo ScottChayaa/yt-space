@@ -1165,6 +1165,21 @@ button { cursor: pointer; background: none; border: none; padding: 0; }
 .fd-search { display: flex; align-items: center; gap: var(--s2); padding: var(--s2) var(--s3) 0; }
 .fd-search .btn { min-height: var(--tap); padding: 0 var(--s2); flex: 0 0 auto; }
 
+/* 狀態列：左邊是數量，右邊是「目前用什麼排序」——排序不做成圖示，
+   因為一支箭頭說不出現在是照什麼排的。 */
+.fd-status {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s3);
+  padding: var(--s2) var(--s3) 0;
+  font-size: var(--t-xs); color: var(--text-dim);
+}
+.fd-status .sortpick {
+  display: flex; align-items: center; gap: var(--s1);
+  min-height: var(--tap); padding: 0 var(--s1);
+  font-size: var(--t-xs); color: var(--text);
+}
+.fd-status .sortpick .ic { width: 14px; height: 14px; color: var(--text-dim); }
+.fd-status .sortpick:active { opacity: 0.7; }
+
 /* minmax(0,1fr)：格線的最小值必須是 0，否則長名稱＋大數字會把列撐出畫面 */
 .fd-list { padding: var(--s4) var(--s4) 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s2); }
 .fd-row {
