@@ -14,7 +14,7 @@
   </div>
   <div class="fd-breadcrumb" id="crumb"></div>
   <div class="fd-list" id="subs"></div>
-  <div class="date-group"><div class="tiles c3" id="tiles"></div></div>
+  <div class="date-group"><div class="tiles" id="tiles"></div></div>
   <div class="empty" id="empty" hidden></div>
 </div>
 
@@ -61,7 +61,7 @@ function render() {
   shots.forEach((c, i) => {
     const tile = document.createElement('button');
     tile.type = 'button';
-    tile.className = 'tile square';
+    tile.className = 'tile';
     tile.innerHTML = `<div class="thumb"><div class="sb-frame" style="${M.thumbStyle(c.videoId, c.start)}" role="img" aria-label="${c.summary || '片段縮圖'}"></div></div>`;
     tile.onclick = () => APP.openLightbox(shots, i, { onChange: render });
     tiles.appendChild(tile);

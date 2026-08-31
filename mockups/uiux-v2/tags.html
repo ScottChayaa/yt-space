@@ -43,7 +43,7 @@
   <!-- ── 結果區：v1 要跳到另一個頁面，v2 直接接在同一頁 ── -->
   <div id="results" hidden>
     <div class="result-bar" id="resultBar"></div>
-    <div class="date-group" style="padding-top:var(--s3)"><div class="tiles c3" id="tiles"></div></div>
+    <div class="date-group" style="padding-top:var(--s3)"><div class="tiles" id="tiles"></div></div>
     <div class="empty" id="empty" hidden></div>
   </div>
 </div>
@@ -204,7 +204,7 @@
     list.forEach((c, i) => {
       const tile = document.createElement('button');
       tile.type = 'button';
-      tile.className = 'tile square';
+      tile.className = 'tile';
       tile.innerHTML = `<div class="thumb"><div class="sb-frame" style="${M.thumbStyle(c.videoId, c.start)}" role="img" aria-label="${c.summary || '片段縮圖'}"></div></div>`;
       tile.onclick = () => APP.openLightbox(list, i, { onChange: renderResults });
       tiles.appendChild(tile);

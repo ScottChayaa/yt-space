@@ -10,26 +10,24 @@
 <div class="app-main">
   <div class="topbar"><span class="title">設定</span></div>
 
-  <!-- v1 是紫色漸層 hero ＋ 跨在下緣的三格統計卡。
-       那三個數字（收藏片段／本月新增／來源影片）對一個私人收藏的使用者沒有用處，
-       中間那格甚至只是首頁已經看得到的資訊。v2 收成一行普通的帳號列。 -->
-  <div class="account-head">
-    <div class="avatar-lg">S</div>
-    <div class="who">
-      <div class="name">Scott Lin</div>
-      <div class="mail">mmx112945@gmail.com</div>
+  <!-- 帳號區採 v1 的設計：漸層 hero ＋ 跨在下緣的三格統計卡。
+       v2 只換掉寫死的色碼與字級，改用尺標上的 token。 -->
+  <div class="account-hero">
+    <div class="account" id="account">
+      <div class="avatar-lg">S</div>
+      <div class="who">
+        <div class="name">Scott Lin</div>
+        <div class="mail">mmx112945@gmail.com</div>
+      </div>
+      <button class="chip ghost-on-accent" id="logout" style="margin-left:auto">登出</button>
     </div>
   </div>
-  <div class="set-note" style="padding-top:var(--s2)" id="summary"></div>
 
+  <!-- 三格統計：每一格都是入口 -->
+  <div class="stat-card" id="stats"></div>
+
+  <!-- 設定項目：只列入口，細節都在下一頁 -->
   <div class="set-group split" id="menu"></div>
-
-  <!-- 登出移到最底、用破壞性樣式（v1 放在漸層 header 右上角）-->
-  <div class="set-group split">
-    <button class="set-row link danger" id="logout" style="width:100%;justify-content:flex-start">
-      <div><div class="l">登出</div></div>
-    </button>
-  </div>
 </div>
 
 <div id="nav"></div>
@@ -41,12 +39,19 @@
   document.getElementById('nav').innerHTML = APP.renderNav('account');
 
   const st = M.stats();
-  document.getElementById('summary').textContent =
-    `目前收藏 ${st.shots} 張，來自 ${st.videos} 支影片。`;
+  const cells = [
+    { n: st.shots,     label: '收藏片段', ico: 'imagePlus', href: 'home.html' },
+    { n: st.thisMonth, label: '本月新增', ico: 'plus',      href: 'home.html' },
+    { n: st.videos,    label: '來源影片', ico: 'film',      href: 'home.html' }
+  ];
+  document.getElementById('stats').innerHTML = cells.map(c => `
+    <a class="stat-item" href="${c.href}">
+      <span class="stat-ico">${APP.svg(APP.ICONS[c.ico], 'ic')}</span>
+      <span class="stat-n">${c.n}</span>
+      <span class="stat-l">${c.label}</span>
+    </a>`).join('');
 
   const SIM_LABEL = { h: '高', m: '中', l: '低' };
-  // v1 的圖示是按「圖示庫裡有什麼」挑的：標籤管理用放大鏡（那是搜尋）、
-  // 取圖用加號（那是導覽列的取圖鈕）、縮圖服務跟統計卡用同一個圖片圖示。
   const items = [
     { k: 'capture', ico: 'filter',    name: '取圖',     val: () => '過濾相似強度：' + SIM_LABEL[localStorage.getItem('ytspace2_sim_strength') || 'm'] },
     { k: 'tags',    ico: 'tag',       name: '標籤管理', val: () => M.allTags().length + ' 個標籤' },

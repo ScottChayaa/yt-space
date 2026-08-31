@@ -43,24 +43,6 @@
   const LS_KEY = 'ytspace2_home_upto';
   let upTo = localStorage.getItem(LS_KEY) || '';   // 預設＝不篩選（v1 預設是本月）
 
-  /* 依當月張數決定欄數：1 張給整寬大圖，2–4 張兩欄，5 張以上三欄。
-     v1 一律三欄，於是每月只有一張圖時右邊三分之二是空的。 */
-  function layoutFor(n) {
-    if (n === 1) return { cls: 'c1', cap: 'full' };
-    if (n <= 4) return { cls: 'c2', cap: 'compact' };
-    return { cls: 'c3', cap: 'none' };
-  }
-
-  function tileHtml(c, cap) {
-    const thumb = `<div class="thumb"><div class="sb-frame" style="${M.thumbStyle(c.videoId, c.start)}" role="img" aria-label="${c.summary || '片段縮圖'}"></div></div>`;
-    if (cap === 'none') return thumb;
-    const tags = APP.top2Tags(c).map(f => APP.tagChip(f)).join('');
-    const desc = c.summary
-      ? `<div class="desc">${c.summary}</div>`
-      : `<div class="desc dim">還沒有描述</div>`;
-    return `${thumb}<div class="cap">${desc}${tags ? `<div class="tile-tags">${tags}</div>` : ''}</div>`;
-  }
-
   function render() {
     grid.innerHTML = '';
     const list = reviewed.filter(c => !upTo || c.eventDate.slice(0, 7) <= upTo);
@@ -75,7 +57,7 @@
       return;
     }
 
-    // 先分組，才知道每一組有幾張、要用幾欄
+    // 依月份分組（每組固定三欄）
     const groups = [];
     for (const c of list) {
       const key = c.eventDate.slice(0, 7);
@@ -86,15 +68,14 @@
 
     const flat = [];   // Lightbox 的左右滑動範圍 = 目前顯示中的清單
     for (const g of groups) {
-      const { cls, cap } = layoutFor(g.items.length);
       const el = document.createElement('div');
       el.className = 'date-group';
-      el.innerHTML = `<h2>${g.label}<span class="cnt">${g.items.length} 張</span></h2>
+      el.innerHTML = `<h2>${g.label}</h2>
         <div class="month-tags"></div>
-        <div class="tiles ${cls}"></div>`;
+        <div class="tiles"></div>`;
       grid.appendChild(el);
 
-      // 月份標籤：v1 是會被切在字中間的橫向捲動列，v2 換行排
+      // 月份標籤：單行橫向捲動，不換行
       const tagMap = new Map();
       for (const c of g.items) for (const f of M.shotFacets(c)) if (!tagMap.has(M.facetKey(f))) tagMap.set(M.facetKey(f), f);
       const tagsEl = el.querySelector('.month-tags');
@@ -110,8 +91,8 @@
         const tile = document.createElement('button');
         tile.type = 'button';
         // v1 的 tile 是 <div>，鍵盤到不了；v2 用真的 button
-        tile.className = 'tile' + (cap === 'compact' ? ' compact' : '') + (cap === 'none' ? ' square' : '');
-        tile.innerHTML = tileHtml(c, cap);
+        tile.className = "tile";
+        tile.innerHTML = `<div class="thumb"><div class="sb-frame" style="${M.thumbStyle(c.videoId, c.start)}" role="img" aria-label="${c.summary || "片段縮圖"}"></div></div>`;
         tile.addEventListener('click', () => APP.openLightbox(flat, idx, { onChange: render }));
         tilesEl.appendChild(tile);
       }
