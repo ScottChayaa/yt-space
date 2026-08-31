@@ -10,8 +10,24 @@
 <div class="app-main">
   <div class="topbar">
     <span class="title">分類</span>
+    <button class="icon-btn" id="filterBtn" aria-label="篩選分類名稱"></button>
     <button class="more accent" id="add" aria-label="新增資料夾"></button>
   </div>
+
+  <!-- 篩選列：分類多的時候才需要，平常收在頂列的放大鏡後面 -->
+  <div class="fd-search" id="searchBar" hidden>
+    <div class="search block" id="searchBox">
+      <input id="searchInput" placeholder="搜尋分類名稱" autocomplete="off">
+    </div>
+    <button class="btn quiet" id="searchCancel">取消</button>
+  </div>
+
+  <!-- 排序模式：長按任一張卡片進入，避免和捲動搶手勢 -->
+  <div class="sortbar" id="sortBar" hidden>
+    <span>拖曳卡片調整順序</span>
+    <button id="sortDone">完成</button>
+  </div>
+
   <div class="fd-grid" id="list"></div>
   <div class="empty" id="empty" hidden></div>
 </div>
@@ -24,6 +40,10 @@
 <script>
 document.getElementById('nav').innerHTML = APP.renderNav('folders');
 document.getElementById('add').innerHTML = APP.svg(APP.ICONS.folderPlus, 'ic');
+document.getElementById('filterBtn').innerHTML = APP.svg(APP.ICONS.search, 'ic');
+document.getElementById('searchBox').insertAdjacentHTML('afterbegin', APP.svg(APP.ICONS.search, 'ic'));
+
+const list = document.getElementById('list');
 
 /* 資料夾（含子孫層）裡的圖，拿來當卡片上的幻燈片 */
 function shotsIn(id) {
@@ -31,18 +51,38 @@ function shotsIn(id) {
   for (const ch of M.folderChildren(id)) for (const s of shotsIn(ch.id)) ids.add(s.id);
   return M.CLIPS.filter(c => ids.has(c.id));
 }
-const pickShots = (list, n) => [...list].sort(() => Math.random() - 0.5).slice(0, n);
+const pickShots = (arr, n) => [...arr].sort(() => Math.random() - 0.5).slice(0, n);
 
 const REDUCE_MOTION = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let timers = [];
+let query = '';        // 篩選字串
+let sorting = false;   // 是否在排序模式
+
+/* ── 自訂順序：存 id 陣列，沒排過的照原順序排在後面 ── */
+const ORDER_KEY = 'ytspace2_folder_order';
+function loadOrder() {
+  try { const v = JSON.parse(localStorage.getItem(ORDER_KEY)); return Array.isArray(v) ? v : []; }
+  catch { return []; }
+}
+function orderedFolders() {
+  const order = loadOrder();
+  const rank = id => { const i = order.indexOf(id); return i < 0 ? Number.MAX_SAFE_INTEGER : i; };
+  return [...M.folderChildren(null)].sort((a, b) => rank(a.id) - rank(b.id));
+}
+function saveOrder() {
+  const shown = [...list.querySelectorAll('.fd-card')].map(c => c.dataset.id);
+  const rest = M.folderChildren(null).map(f => f.id).filter(id => !shown.includes(id));
+  localStorage.setItem(ORDER_KEY, JSON.stringify([...shown, ...rest]));
+}
 
 function render() {
   timers.forEach(clearInterval);
   timers = [];
-
-  const list = document.getElementById('list');
   list.innerHTML = '';
-  const folders = M.folderChildren(null);
+
+  const all = orderedFolders();
+  const q = query.toLowerCase();
+  const folders = q ? all.filter(f => f.name.toLowerCase().includes(q)) : all;
 
   folders.forEach((f, i) => {
     const shots = pickShots(shotsIn(f.id), 4);
@@ -50,6 +90,7 @@ function render() {
 
     const card = document.createElement('div');
     card.className = 'fd-card';
+    card.dataset.id = f.id;
     card.innerHTML = `
       <div class="fd-shot">
         ${shots.length
@@ -64,7 +105,7 @@ function render() {
       const layers = card.querySelectorAll('.fd-shot .fl');
       let idx = 0, front = 0;
       timers.push(setInterval(() => {
-        if (document.hidden) return;
+        if (document.hidden || sorting) return;
         idx = (idx + 1) % shots.length;
         const back = 1 - front;
         layers[back].innerHTML = frame(shots[idx]);
@@ -75,44 +116,110 @@ function render() {
     }
 
     APP.bindPress(card, {
-      onTap: () => location.href = `folder.html?id=${f.id}`,
-      onHold: () => openFolderMenu(f)
+      onTap: () => { if (!sorting) location.href = `folder.html?id=${f.id}`; },
+      onHold: () => { if (!sorting) enterSort(); }
     });
+    bindDrag(card);
     list.appendChild(card);
   });
 
   const emptyEl = document.getElementById('empty');
   emptyEl.hidden = folders.length > 0;
-  if (!folders.length) {
-    emptyEl.innerHTML = `${APP.svg(APP.ICONS.folder, 'ic')}
-      <div>還沒有任何分類</div>
-      <button class="btn secondary" id="emptyAdd">${APP.svg(APP.ICONS.folderPlus, 'ic')} 新增資料夾</button>`;
-    document.getElementById('emptyAdd').onclick = addFolder;
-  }
+  if (folders.length) return;
+
+  emptyEl.innerHTML = query
+    ? `${APP.svg(APP.ICONS.search, 'ic')}
+       <div>沒有符合「${query}」的分類</div>
+       <button class="btn secondary" id="emptyClear">清除篩選</button>`
+    : `${APP.svg(APP.ICONS.folder, 'ic')}
+       <div>還沒有任何分類</div>
+       <button class="btn secondary" id="emptyAdd">${APP.svg(APP.ICONS.folderPlus, 'ic')} 新增資料夾</button>`;
+  const clr = document.getElementById('emptyClear');
+  if (clr) clr.onclick = closeSearch;
+  const addBtn = document.getElementById('emptyAdd');
+  if (addBtn) addBtn.onclick = addFolder;
 }
 
-function openFolderMenu(f) {
-  const sh = APP.openPanel(`
-    <div class="srow"><span class="trange">${f.name}</span>
-      <button class="close" onclick="closeSheet()">${APP.svg(APP.ICONS.close, 'ic')}</button></div>
-    <button class="act-row" id="fmRen">${APP.svg(APP.ICONS.edit, 'ic')} 改名</button>
-    <button class="act-row danger" id="fmDel">${APP.svg(APP.ICONS.trash, 'ic')} 刪除資料夾</button>`);
-  sh.querySelector('#fmRen').onclick = () => {
-    const name = prompt('新名稱？', f.name);
-    if (name) { f.name = name.trim(); closeSheet(); render(); }
-  };
-  sh.querySelector('#fmDel').onclick = () => {
-    const n = M.folderCount(f.id);
-    if (!confirm(`刪除「${f.name}」？收藏的 ${n} 張圖本身不會被刪。`)) return;
-    (function del(id) {
-      for (const ch of M.folderChildren(id)) del(ch.id);
-      const i = M.FOLDERS.findIndex(x => x.id === id);
-      if (i >= 0) M.FOLDERS.splice(i, 1);
-      delete M.FOLDER_SHOTS[id];
-    })(f.id);
-    closeSheet(); render();
-    APP.toast('已刪除資料夾（圖片仍在首頁）');
-  };
+/* ── 篩選 ── */
+const searchBar = document.getElementById('searchBar');
+const searchInput = document.getElementById('searchInput');
+function openSearch() { searchBar.hidden = false; searchInput.focus(); }
+function closeSearch() {
+  query = ''; searchInput.value = ''; searchBar.hidden = true; render();
+}
+document.getElementById('filterBtn').onclick = () => searchBar.hidden ? openSearch() : closeSearch();
+document.getElementById('searchCancel').onclick = closeSearch;
+searchInput.addEventListener('input', () => { query = searchInput.value.trim(); render(); });
+
+/* ── 排序模式：長按進入、拖曳排序、完成離開 ──
+   沒有做成「長按即拖曳」，是因為觸控要先關掉捲動（touch-action），
+   而 touch-action 必須在手勢開始前就設定好。 */
+function enterSort() {
+  if (query) closeSearch();
+  sorting = true;
+  document.getElementById('sortBar').hidden = false;
+  list.classList.add('sorting');
+  navigator.vibrate?.(15);
+}
+function exitSort() {
+  sorting = false;
+  document.getElementById('sortBar').hidden = true;
+  list.classList.remove('sorting');
+  saveOrder();
+  APP.toast('已儲存分類順序');
+}
+document.getElementById('sortDone').onclick = exitSort;
+
+function bindDrag(card) {
+  card.addEventListener('pointerdown', e => {
+    if (!sorting || e.button > 0) return;
+    e.preventDefault();
+    let sx = e.clientX, sy = e.clientY, lastY = e.clientY;
+    card.classList.add('drag');
+
+    /* 事件掛在 window 而不是卡片上：卡片一被 insertBefore 搬到新位置，
+       pointer capture 就會失效，只掛在卡片上的話指標一離開那張卡
+       就再也收不到 move / up，拖曳會卡在原地。 */
+    const move = ev => {
+      lastY = ev.clientY;
+      card.style.transform = `translate(${ev.clientX - sx}px, ${ev.clientY - sy}px)`;
+
+      // 拖到哪張卡上，就用那張卡的中線決定插在前面還是後面
+      const under = document.elementsFromPoint(ev.clientX, ev.clientY)
+        .find(el => el.classList?.contains('fd-card') && el !== card);
+      if (!under) return;
+      const r = under.getBoundingClientRect();
+      const ref = ev.clientX < r.left + r.width / 2 ? under : under.nextSibling;
+      if (ref === card || ref === card.nextSibling) return;   // 位置沒變就別重排，否則會來回抖
+      list.insertBefore(card, ref);
+      // 卡片已經換到新格子，位移基準跟著歸零
+      sx = ev.clientX; sy = ev.clientY;
+      card.style.transform = 'translate(0, 0)';
+    };
+
+    // 拖到畫面上下緣時自動捲動，分類多的時候才拉得到最上面
+    const EDGE = 80, STEP = 14;
+    let raf = requestAnimationFrame(function tick() {
+      if (lastY < EDGE) scrollBy(0, -STEP);
+      else if (lastY > innerHeight - EDGE) scrollBy(0, STEP);
+      raf = requestAnimationFrame(tick);
+    });
+
+    const up = () => {
+      cancelAnimationFrame(raf);
+      removeEventListener('pointermove', move);
+      removeEventListener('pointerup', up);
+      removeEventListener('pointercancel', up);
+      removeEventListener('blur', up);
+      card.classList.remove('drag');
+      card.style.transform = '';
+      saveOrder();
+    };
+    addEventListener('pointermove', move);
+    addEventListener('pointerup', up);
+    addEventListener('pointercancel', up);
+    addEventListener('blur', up);   // 指標離開瀏覽器視窗也要收尾
+  });
 }
 
 function addFolder() {
@@ -122,6 +229,10 @@ function addFolder() {
 document.getElementById('add').onclick = addFolder;
 
 render();
+
+// 從資料夾內頁刪除後導回來的提示
+const pendingToast = sessionStorage.getItem('ytspace2_folder_toast');
+if (pendingToast) { sessionStorage.removeItem('ytspace2_folder_toast'); APP.toast(pendingToast); }
 </script>
 </body>
 </html>

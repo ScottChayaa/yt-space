@@ -1161,6 +1161,26 @@ button { cursor: pointer; background: none; border: none; padding: 0; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
+/* 篩選列：頂列放大鏡按下後才出現 */
+.fd-search { display: flex; align-items: center; gap: var(--s2); padding: var(--s2) var(--s3) 0; }
+.fd-search .btn { min-height: var(--tap); padding: 0 var(--s2); flex: 0 0 auto; }
+
+/* 排序模式的說明列 */
+.sortbar {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s3);
+  padding: 0 var(--s3) 0 var(--s4); min-height: var(--tap);
+  background: var(--accent-weak); color: var(--accent); font-size: var(--t-xs);
+}
+.sortbar button { color: var(--accent); font-size: var(--t-sm); font-weight: var(--w-bold); min-height: var(--tap); padding: 0 var(--s2); }
+
+/* 排序模式：關掉捲動手勢，卡片才能跟著手指走 */
+.fd-grid.sorting .fd-card { touch-action: none; cursor: grab; user-select: none; }
+.fd-card.drag {
+  position: relative; z-index: 5; cursor: grabbing;
+  box-shadow: var(--e2); opacity: 0.96;
+}
+
+
 /* minmax(0,1fr)：格線的最小值必須是 0，否則長名稱＋大數字會把列撐出畫面 */
 .fd-list { padding: var(--s4) var(--s4) 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s2); }
 .fd-row {

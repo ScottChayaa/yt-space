@@ -255,8 +255,51 @@ function removeClip(clipId) {
   for (const k in FOLDER_SHOTS) FOLDER_SHOTS[k].delete(clipId);
 }
 
+/* 原型的資料只活在記憶體裡，換一頁就重置。
+   資料夾的改名與刪除是跨頁看得到的操作，所以額外記在 sessionStorage，
+   載入時再套回來（關掉分頁就恢復成預設 mock 資料）。 */
+const EDIT_KEY = 'ytspace2_folder_edits';
+function folderEdits() {
+  try { return JSON.parse(sessionStorage.getItem(EDIT_KEY)) || {}; } catch { return {}; }
+}
+function saveFolderEdits(e) { sessionStorage.setItem(EDIT_KEY, JSON.stringify(e)); }
+function renameFolder(id, name) {
+  const f = folderById(id);
+  if (f) f.name = name;
+  const e = folderEdits();
+  e.renamed = { ...(e.renamed || {}), [id]: name };
+  saveFolderEdits(e);
+}
+function deleteFolder(id) {
+  const gone = [];
+  (function del(fid) {
+    for (const ch of folderChildren(fid)) del(ch.id);
+    const i = FOLDERS.findIndex(x => x.id === fid);
+    if (i >= 0) FOLDERS.splice(i, 1);
+    delete FOLDER_SHOTS[fid];
+    gone.push(fid);
+  })(id);
+  const e = folderEdits();
+  e.deleted = [...new Set([...(e.deleted || []), ...gone])];
+  saveFolderEdits(e);
+}
+function applyFolderEdits() {
+  const e = folderEdits();
+  for (const [id, name] of Object.entries(e.renamed || {})) {
+    const f = folderById(id);
+    if (f) f.name = name;
+  }
+  for (const id of e.deleted || []) {
+    const i = FOLDERS.findIndex(x => x.id === id);
+    if (i >= 0) FOLDERS.splice(i, 1);
+    delete FOLDER_SHOTS[id];
+  }
+}
+applyFolderEdits();
+
 Object.assign(window.MOCK, {
   FOLDERS, FOLDER_SHOTS, folderChildren, folderById, folderCount,
   folderDepth, shotFolders, addFolder, removeClip, allPlaces, stats,
-  shotFacets, facetKey, allFacets, matchesFacet
+  shotFacets, facetKey, allFacets, matchesFacet,
+  renameFolder, deleteFolder
 });

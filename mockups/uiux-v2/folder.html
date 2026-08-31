@@ -11,6 +11,7 @@
   <div class="topbar">
     <button class="back" id="backBtn" onclick="history.length>1?history.back():location.href='folders.html'"></button>
     <span class="title" id="fTitle">資料夾</span>
+    <button class="more" id="moreBtn" aria-label="這個資料夾的選項"></button>
   </div>
   <div class="fd-breadcrumb" id="crumb"></div>
   <div class="fd-list" id="subs"></div>
@@ -26,6 +27,7 @@
 <script>
 document.getElementById('nav').innerHTML = APP.renderNav('folders');
 document.getElementById('backBtn').innerHTML = APP.svg(APP.ICONS.back, 'ic');
+document.getElementById('moreBtn').innerHTML = APP.svg(APP.ICONS.more, 'ic', true);
 
 const id = new URLSearchParams(location.search).get('id');
 const folder = M.folderById(id);
@@ -73,6 +75,35 @@ function render() {
     <div style="font-size:var(--t-sm)">在首頁點開任何一張圖 →【加入分類】</div>`;
 }
 render();
+
+/* 改名／刪除：分類頁的長按讓給排序了，管理動作改在資料夾裡做 */
+document.getElementById('moreBtn').onclick = () => {
+  const sh = APP.openPanel(`
+    <div class="srow"><span class="trange">${folder.name}</span>
+      <button class="close" onclick="closeSheet()">${APP.svg(APP.ICONS.close, 'ic')}</button></div>
+    <button class="act-row" id="fmRen">${APP.svg(APP.ICONS.edit, 'ic')} 改名</button>
+    <button class="act-row danger" id="fmDel">${APP.svg(APP.ICONS.trash, 'ic')} 刪除資料夾</button>`);
+
+  sh.querySelector('#fmRen').onclick = () => {
+    const name = prompt('新名稱？', folder.name);
+    if (!name) return;
+    M.renameFolder(id, name.trim());
+    document.getElementById('fTitle').textContent = folder.name;
+    crumbs[crumbs.length - 1] = folder.name;
+    document.getElementById('crumb').textContent = '分類 / ' + crumbs.join(' / ');
+    closeSheet();
+    APP.toast('已改名');
+  };
+
+  sh.querySelector('#fmDel').onclick = () => {
+    const n = M.folderCount(id);
+    if (!confirm(`刪除「${folder.name}」？收藏的 ${n} 張圖本身不會被刪。`)) return;
+    M.deleteFolder(id);
+    closeSheet();
+    sessionStorage.setItem('ytspace2_folder_toast', '已刪除資料夾（圖片仍在首頁）');
+    location.replace('folders.html');
+  };
+};
 }
 </script>
 </body>
