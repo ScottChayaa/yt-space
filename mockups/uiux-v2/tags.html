@@ -26,7 +26,7 @@
     </div>
 
     <div id="paneTag">
-      <div class="qfield" style="padding-bottom:0"><span class="qfield-label" id="tagLabel"></span></div>
+      <div class="qfield"><span class="qfield-label" id="tagLabel"></span></div>
       <div class="tag-cloud" id="tagCloud"></div>
     </div>
 
@@ -48,10 +48,9 @@
   </div>
 </div>
 
-<!-- 貼底動作：按鈕標示會查幾個條件；停用時附上原因（v1 只是把按鈕變淡）-->
+<!-- 貼底動作：按鈕標示會查幾個條件 -->
 <div class="sticky-actions" id="actions">
   <button class="btn primary block" id="go" disabled>查詢</button>
-  <div class="btn-reason" id="reason"></div>
 </div>
 
 <div id="nav"></div>
@@ -90,7 +89,7 @@
   document.getElementById('tabTag').onclick = () => setMode('tag');
   document.getElementById('tabText').onclick = () => setMode('text');
 
-  /* ── 標籤雲：每個 chip 帶張數，選了就打勾（不只靠顏色）── */
+  /* ── 標籤雲：選了就打勾（不只靠顏色）── */
   function renderTags() {
     const pool = REVIEWED.filter(inRange);
     const avail = M.allFacets(pool);
@@ -99,10 +98,7 @@
 
     document.getElementById('tagLabel').textContent = `標籤與地點（${avail.length}）`;
     const el = document.getElementById('tagCloud');
-    el.innerHTML = avail.map(f => {
-      const n = pool.filter(c => M.matchesFacet(c, f)).length;
-      return APP.tagChip(f, { selected: selected.has(M.facetKey(f)), key: M.facetKey(f), count: n });
-    }).join('') || '<span class="empty">這個時間以前沒有標籤</span>';
+    el.innerHTML = avail.map(f => APP.tagChip(f, { selected: selected.has(M.facetKey(f)), key: M.facetKey(f) })).join('') || '<span class="empty">這個時間以前沒有標籤</span>';
 
     el.querySelectorAll('.chip').forEach(chip => chip.onclick = () => {
       const k = chip.dataset.key;
@@ -114,16 +110,13 @@
 
   function syncGo() {
     const go = document.getElementById('go');
-    const reason = document.getElementById('reason');
     if (mode === 'tag') {
       go.disabled = selected.size === 0;
       go.textContent = selected.size ? `查詢 ${selected.size} 個條件` : '查詢';
-      reason.textContent = selected.size ? '' : '先選一個以上的標籤或地點';
     } else {
       const q = document.getElementById('textInput').value.trim();
       go.disabled = !q;
       go.textContent = '查詢';
-      reason.textContent = q ? '' : '先輸入一段描述';
     }
   }
   document.getElementById('textInput').addEventListener('input', syncGo);

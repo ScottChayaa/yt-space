@@ -51,12 +51,11 @@ function kindSvg(kind) {
 /* 標籤 chip HTML（統一產生器）；plainHash: 一律用中性 # icon（首頁縮圖標籤）*/
 function tagChip(tag, opts = {}) {
   const cls = ['chip', 'mini', opts.selected ? 'sel' : '', tag.source === 'ai' ? 'ai' : ''].join(' ').trim();
-  const count = opts.count != null ? `<span class="n">${opts.count}</span>` : '';
   const icon = opts.plainHash
     ? `<svg class="kico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${KIND.topic.icon}</svg>`
     : kindSvg(tag.kind);
   const key = opts.key ? ` data-key="${opts.key}"` : '';
-  return `<span class="${cls}" data-name="${tag.name}"${key}>${icon}<span class="cn">${tag.name}</span>${count}</span>`;
+  return `<span class="${cls}" data-name="${tag.name}"${key}>${icon}<span class="cn">${tag.name}</span></span>`;
 }
 
 /* ───────── 底部導覽（5 項，SVG icon + 文字標籤）─────────

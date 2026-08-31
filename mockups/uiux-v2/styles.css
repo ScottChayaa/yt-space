@@ -431,10 +431,8 @@ button { cursor: pointer; background: none; border: none; padding: 0; }
   transition: background var(--dur), border-color var(--dur);
 }
 .chip .kico { width: 16px; height: 16px; flex-shrink: 0; }
-.chip .n { color: var(--text-dim); font-size: var(--t-xs); margin-left: var(--s1); font-variant-numeric: tabular-nums; }
 .chip.sel { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .chip.sel .kico { color: var(--accent-ink) !important; }
-.chip.sel .n { color: var(--accent-ink); opacity: 0.85; }
 /* 已選還多一個打勾 —— 不能只靠顏色編碼狀態 */
 .chip.sel::after {
   content: ''; width: 14px; height: 14px; margin-left: 2px; flex: 0 0 auto;
@@ -472,11 +470,6 @@ button { cursor: pointer; background: none; border: none; padding: 0; }
 .btn.primary:disabled { background: var(--surface-2); color: var(--text-faint); border-color: var(--border); }
 
 /* 停用時附上原因，v1 只是把按鈕變淡 */
-.btn-reason {
-  font-size: var(--t-xs); color: var(--text-dim);
-  text-align: center; margin-top: var(--s2);
-}
-
 .btn-row { display: flex; gap: var(--s2); margin-top: var(--s4); }
 .btn-row .btn { flex: 1; }
 .btn-row .btn.grow2 { flex: 2; }
@@ -793,7 +786,8 @@ button { cursor: pointer; background: none; border: none; padding: 0; }
   display: block; font-size: var(--t-sm); font-weight: var(--w-medium);
   color: var(--text-dim); margin-bottom: var(--s2);
 }
-.tag-cloud { display: flex; flex-wrap: wrap; gap: var(--s2); padding: var(--s3) var(--s4) var(--s4); }
+/* 與「時間」欄位一致：標題到控制項只隔 --s2（由 .qfield-label 的 margin 提供）*/
+.tag-cloud { display: flex; flex-wrap: wrap; gap: var(--s2); padding: 0 var(--s4) var(--s4); }
 .tag-cloud .chip { cursor: pointer; }
 .month-tags .chip, .rs-cond .chip { cursor: pointer; }
 
