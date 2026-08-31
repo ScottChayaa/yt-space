@@ -25,24 +25,61 @@
 document.getElementById('nav').innerHTML = APP.renderNav('folders');
 document.getElementById('add').innerHTML = APP.svg(APP.ICONS.folderPlus, 'ic');
 
+/* 資料夾（含子孫層）裡的圖，拿來當卡片上的幻燈片 */
+function shotsIn(id) {
+  const ids = new Set(M.FOLDER_SHOTS[id] || []);
+  for (const ch of M.folderChildren(id)) for (const s of shotsIn(ch.id)) ids.add(s.id);
+  return M.CLIPS.filter(c => ids.has(c.id));
+}
+const pickShots = (list, n) => [...list].sort(() => Math.random() - 0.5).slice(0, n);
+
+const REDUCE_MOTION = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let timers = [];
+
 function render() {
+  timers.forEach(clearInterval);
+  timers = [];
+
   const list = document.getElementById('list');
   list.innerHTML = '';
   const folders = M.folderChildren(null);
 
-  // 卡片沿用 v1 的雙欄簡易設計：圖示 + 名稱 + 張數，點開進資料夾、長按叫出選單
-  for (const f of folders) {
-    const card = document.createElement("div");
-    card.className = "fd-card";
-    card.innerHTML = `${APP.svg(APP.ICONS.folder, "ic")}
-      <span class="name">${f.name}</span>
-      <span class="cnt">${M.folderCount(f.id)}</span>`;
+  folders.forEach((f, i) => {
+    const shots = pickShots(shotsIn(f.id), 4);
+    const frame = c => `<div class="sb-frame" style="${M.thumbStyle(c.videoId, c.start)}" role="img" aria-label="片段縮圖"></div>`;
+
+    const card = document.createElement('div');
+    card.className = 'fd-card';
+    card.innerHTML = `
+      <div class="fd-shot">
+        ${shots.length
+          ? `<div class="fl on">${frame(shots[0])}</div><div class="fl">${shots[1] ? frame(shots[1]) : ''}</div>`
+          : `<div class="ph">${APP.svg(APP.ICONS.folder, 'ic')}</div>`}
+        <span class="fd-n">${M.folderCount(f.id)} 張</span>
+      </div>
+      <div class="fd-line"><span class="name">${f.name}</span></div>`;
+
+    // 幻燈片：兩層交替淡入，每張卡的間隔錯開，整頁才不會一起換圖
+    if (shots.length > 1 && !REDUCE_MOTION) {
+      const layers = card.querySelectorAll('.fd-shot .fl');
+      let idx = 0, front = 0;
+      timers.push(setInterval(() => {
+        if (document.hidden) return;
+        idx = (idx + 1) % shots.length;
+        const back = 1 - front;
+        layers[back].innerHTML = frame(shots[idx]);
+        layers[back].classList.add('on');
+        layers[front].classList.remove('on');
+        front = back;
+      }, 4000 + i * 900));
+    }
+
     APP.bindPress(card, {
       onTap: () => location.href = `folder.html?id=${f.id}`,
       onHold: () => openFolderMenu(f)
     });
     list.appendChild(card);
-  }
+  });
 
   const emptyEl = document.getElementById('empty');
   emptyEl.hidden = folders.length > 0;
