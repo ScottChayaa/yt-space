@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>yt-space · 設定</title>
 <link rel="stylesheet" href="styles.css">
+<script src="auth.js"></script>
 </head>
 <body>
 <div class="app-main">
@@ -14,10 +15,10 @@
        v2 只換掉寫死的色碼與字級，改用尺標上的 token。 -->
   <div class="account-hero">
     <div class="account" id="account">
-      <div class="avatar-lg">S</div>
+      <div class="avatar-lg" id="who-av"></div>
       <div class="who">
-        <div class="name">Scott Lin</div>
-        <div class="mail">mmx112945@gmail.com</div>
+        <div class="name" id="who-name"></div>
+        <div class="mail" id="who-mail"></div>
       </div>
       <button class="chip ghost-on-accent" id="logout" style="margin-left:auto">登出</button>
     </div>
@@ -65,8 +66,14 @@
       ${APP.svg(APP.ICONS.chevronRight, 'ic dim arrow')}
     </a>`).join('');
 
+  /* 帳號資料來自登入時建立的 session，不再寫死在 HTML 裡 */
+  const me = AUTH.user();
+  document.getElementById('who-av').textContent = me.initial;
+  document.getElementById('who-name').textContent = me.name;
+  document.getElementById('who-mail').textContent = me.mail;
+
   document.getElementById('logout').onclick = () => {
-    if (confirm('登出 yt-space？收藏資料留在雲端，下次登入還在。')) APP.toast('（原型）會回到登入頁');
+    if (confirm('登出 yt-space？收藏資料留在雲端，下次登入還在。')) AUTH.signOut();
   };
 </script>
 </body>

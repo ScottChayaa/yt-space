@@ -1273,3 +1273,47 @@ button { cursor: pointer; background: none; border: none; padding: 0; }
 .act-row .ic.chk { margin-left: auto; color: var(--accent); }
 .act-row > span { flex: 1; min-width: 0; }
 .act-row.danger, .act-row.danger .ic { color: var(--danger); }
+
+/* ───────── 登入頁 ─────────
+   系統要先完成 Google 登入才進得來，所以這一頁沒有導覽、沒有返回，
+   只有一顆主要動作。版面置中而不是靠上：一頁只有一件事時，靠上會留下一大片
+   不知道要不要往下捲的空白。 */
+.login-page {
+  min-height: 100dvh;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--s5) var(--s4);
+}
+.lg-wrap { width: 100%; max-width: 380px; }
+
+.lg-brand { text-align: center; margin-bottom: var(--s6); }
+.lg-mark {
+  width: 64px; height: 64px; margin: 0 auto var(--s4);
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-md);
+  background: linear-gradient(135deg, var(--hero-1), var(--hero-2));
+  color: #fff; box-shadow: var(--e2);
+}
+.lg-mark .ic { width: 30px; height: 30px; }
+.lg-name { margin: 0; font-size: var(--t-xl); font-weight: var(--w-bold); }
+.lg-tag { margin: var(--s2) 0 0; font-size: var(--t-sm); color: var(--text-dim); }
+
+/* Google 按鈕：品牌識別不能改色，所以底色維持中性、只有 G 是彩的。
+   不套 .btn.primary —— 紫底配彩色 G 會讓 logo 讀不出來。 */
+.btn.google { background: var(--surface); border-color: var(--border-strong); color: var(--text); }
+.btn.google:active { background: var(--surface-2); }
+.btn.google .g-logo { width: 18px; height: 18px; flex: 0 0 auto; }
+.btn.google:disabled .g-logo { opacity: 0.5; }
+
+.lg-spin {
+  width: 16px; height: 16px; flex: 0 0 auto;
+  border: 2px solid var(--border-strong); border-top-color: var(--text-dim);
+  border-radius: 50%; animation: lg-spin 700ms linear infinite;
+}
+@keyframes lg-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .lg-spin { animation-duration: 2.4s; } }
+
+.lg-fine {
+  margin: var(--s4) 0 0; text-align: center;
+  font-size: var(--t-xs); color: var(--text-faint);
+}
+.lg-fine a { color: var(--text-dim); text-decoration: underline; }
