@@ -302,10 +302,11 @@ function renderStep2() {
     if (noSB) { bar.hidden = true; return; }
     bar.hidden = false;
     const n = W.hidden.size;
+    /* 一行講完就好：目前看得到幾張、藏了幾張。按鈕寫的是「按下去會發生什麼」 */
     document.getElementById('filterText').textContent = W.filtered
-      ? `已收斂成 ${W.frames.length - n} 張候選，隱藏了 ${n} 張相似畫面`
-      : `顯示全部 ${W.frames.length} 張候選`;
-    document.getElementById('filterToggle').textContent = W.filtered ? '顯示全部' : '重新過濾';
+      ? `${W.frames.length - n} 張候選 ・ 藏了 ${n} 張相似`
+      : `全部 ${W.frames.length} 張候選`;
+    document.getElementById('filterToggle').textContent = W.filtered ? '顯示全部' : '過濾相似';
   }
 
   function syncCnt() {
