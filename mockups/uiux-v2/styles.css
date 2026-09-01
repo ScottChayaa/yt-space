@@ -1152,6 +1152,7 @@ button { cursor: pointer; background: none; border: none; padding: 0; }
   position: absolute; right: var(--s2); bottom: var(--s2);
   padding: 0 var(--s2); border-radius: var(--r-full);
   background: var(--scrim); color: #FFFFFF;
+  max-width: calc(100% - var(--s4)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: var(--t-xs); line-height: 20px; font-variant-numeric: tabular-nums;
 }
 .fd-line { display: flex; align-items: center; min-height: var(--tap); padding: var(--s2) var(--s3); }
@@ -1172,9 +1173,14 @@ button { cursor: pointer; background: none; border: none; padding: 0; }
   padding: var(--s2) var(--s3) 0;
   font-size: var(--t-xs); color: var(--text-dim);
 }
+/* 狀態列自己不留下內距，改讓下方格線收成 --s2，
+   狀態列上下才是同一個 8px，不會上緊下鬆。 */
+.fd-status + .fd-grid { padding-top: var(--s2); }
+/* 這一列是資訊列不是操作列，所以不吃 --tap 的 44px；
+   排序鍵靠左右內距補回手指的橫向落點，垂直只留 28px。 */
 .fd-status .sortpick {
   display: flex; align-items: center; gap: var(--s1);
-  min-height: var(--tap); padding: 0 var(--s1);
+  min-height: 28px; padding: 0 var(--s2); margin-right: calc(var(--s2) * -1);
   font-size: var(--t-xs); color: var(--text);
 }
 .fd-status .sortpick .ic { width: 14px; height: 14px; color: var(--text-dim); }

@@ -60,10 +60,10 @@ let query = '';        // 篩選字串
 /* ── 排序：預設名稱（zh-Hant 定序＝筆畫順序），numeric 讓「第 2 集」排在「第 10 集」前面 ── */
 const byName = (a, b) => a.name.localeCompare(b.name, 'zh-Hant', { numeric: true });
 const SORTS = {
-  'name-asc':   { label: '名稱（筆畫）A → Z', cmp: byName },
-  'name-desc':  { label: '名稱（筆畫）Z → A', cmp: (a, b) => byName(b, a) },
-  'count-desc': { label: '張數多 → 少',       cmp: (a, b) => M.folderCount(b.id) - M.folderCount(a.id) || byName(a, b) },
-  'recent':     { label: '最近加入',          cmp: (a, b) => M.FOLDERS.indexOf(b) - M.FOLDERS.indexOf(a) }
+  'name-asc':   { label: '名稱 A → Z', cmp: byName },
+  'name-desc':  { label: '名稱 Z → A', cmp: (a, b) => byName(b, a) },
+  'count-desc': { label: '張數多 → 少', cmp: (a, b) => M.folderCount(b.id) - M.folderCount(a.id) || byName(a, b) },
+  'recent':     { label: '最近加入',    cmp: (a, b) => M.FOLDERS.indexOf(b) - M.FOLDERS.indexOf(a) }
 };
 const SORT_KEY = 'ytspace2_folder_sort';
 let sortBy = SORTS[localStorage.getItem(SORT_KEY)] ? localStorage.getItem(SORT_KEY) : 'name-asc';
@@ -93,7 +93,7 @@ function render() {
         ${shots.length
           ? `<div class="fl on">${frame(shots[0])}</div><div class="fl">${shots[1] ? frame(shots[1]) : ''}</div>`
           : `<div class="ph">${APP.svg(APP.ICONS.folder, 'ic')}</div>`}
-        <span class="fd-n">${M.folderCount(f.id)} 張</span>
+        <span class="fd-n">${APP.num(M.folderCount(f.id))} 張</span>
       </div>
       <div class="fd-line"><span class="name">${f.name}</span></div>`;
 
@@ -118,7 +118,7 @@ function render() {
 
   // 狀態列：篩選中改成「符合 N 個」，順便當作篩選有沒有生效的回饋
   document.getElementById('statCount').textContent =
-    query ? `符合 ${folders.length} 個` : `${folders.length} 個分類`;
+    query ? `符合 ${APP.num(folders.length)} 個` : `${APP.num(folders.length)} 個分類`;
   document.getElementById('sortBtn').innerHTML =
     `<span>${SORTS[sortBy].label}</span>${APP.svg(APP.ICONS.chevronDown, 'ic')}`;
 

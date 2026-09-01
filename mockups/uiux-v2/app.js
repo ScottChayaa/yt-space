@@ -210,6 +210,9 @@ function toast(text, ms = 2200) {
   toast._t = setTimeout(() => { el.style.display = 'none'; }, ms);
 }
 
+/* 數字加千分位：分類張數上千之後，1234 看起來像年份，1,234 才一眼是數量 */
+function num(n) { return Number(n).toLocaleString('en-US'); }
+
 /* 泛用底部 sheet（沿用 .sheet 樣式） */
 function openPanel(html) {
   let bd = document.getElementById('sheet-backdrop');
@@ -512,4 +515,4 @@ function openLightbox(list, idx, opts = {}) {
   lb.classList.add('show');
 }
 
-Object.assign(window.APP, { toast, openPanel, openShotSheet, mountPlayer, tagEditor, placeSuggest, openFolderPicker, openLightbox });
+Object.assign(window.APP, { num, toast, openPanel, openShotSheet, mountPlayer, tagEditor, placeSuggest, openFolderPicker, openLightbox });

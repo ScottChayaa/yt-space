@@ -50,7 +50,7 @@ function render() {
     const row = document.createElement('div');
     row.className = 'fd-row';
     row.innerHTML = `${APP.svg(APP.ICONS.folder, 'ic')}<span class="name">${ch.name}</span>
-      <span class="cnt">${M.folderCount(ch.id)}</span>${APP.svg(APP.ICONS.chevronRight, 'ic')}`;
+      <span class="cnt">${APP.num(M.folderCount(ch.id))}</span>${APP.svg(APP.ICONS.chevronRight, 'ic')}`;
     row.onclick = () => location.href = `folder.html?id=${ch.id}`;
     subs.appendChild(row);
   }
