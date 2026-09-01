@@ -63,15 +63,55 @@ function parseVideoId(s) {
 /* ───── 精靈狀態 ───── */
 let W = null;
 
+/* 步驟指示器同時是回頭的路：已完成的步驟是可以點的按鈕（前綴一個 ‹ 表示能回去），
+   還沒走到的步驟維持純文字。v1 只有三條色塊，回上一步得先離開整個流程。 */
 function paintSteps(n) {
   document.getElementById('steps').innerHTML = STEP_LABELS.map((lb, i) => {
     const k = i + 1;
-    return `<div class="st ${k < n ? 'done' : k === n ? 'now' : ''}">
-      <div class="bar"></div><div class="stlb">${k}. ${lb}</div></div>`;
+    const inner = `<div class="bar"></div><div class="stlb">${k < n ? '<span class="bk">‹</span>' : ''}${k}. ${lb}</div>`;
+    return k < n
+      ? `<button class="st done" data-step="${k}" aria-label="回到步驟 ${k}：${lb}">${inner}</button>`
+      : `<div class="st ${k === n ? 'now' : ''}"${k === n ? ' aria-current="step"' : ''}>${inner}</div>`;
   }).join('');
+  document.querySelectorAll('#steps .st[data-step]').forEach(el => {
+    el.onclick = () => goStep(+el.dataset.step);
+  });
 }
 
-function setStep(n) {
+/* 回上一步優先走瀏覽器的歷史（history.go），這樣點步驟列和按 Android 返回鍵
+   會走同一條路，不會出現「上一頁反而往前」的錯亂。
+   但那一步不一定在歷史裡（接續草稿會直接開在第三步），這時才補推一筆。 */
+function goStep(k) {
+  if (!W || k >= W.step) return;
+  if (k > 1) {
+    for (let i = histIdx - 1; i >= 0; i--) if (histSteps[i] === k) return history.go(i - histIdx);
+    return setStep(k);
+  }
+  const sh = APP.openPanel(`
+    <div class="srow"><span class="trange">回第一步換一支影片？</span>
+      <button class="close" onclick="closeSheet()">${APP.svg(APP.ICONS.close, 'ic')}</button></div>
+    <p style="margin:0 0 var(--s4);color:var(--text-dim);font-size:var(--t-sm)">
+      這支已經挑好的 ${W.selected.size} 張會存成草稿，下次點【取圖】可以接著做。</p>
+    <div class="btn-row">
+      <button class="btn secondary" id="gstay">留在這裡</button>
+      <button class="btn primary grow2" id="gback">回第一步</button>
+    </div>`);
+  sh.querySelector('#gstay').onclick = () => closeSheet();
+  /* 第一步不見得在歷史裡（從影片頁帶 ?v= 進來的話就是直接開在第二步），
+     所以回第一步走一次真的導頁，草稿留著、之後從首頁還能接續 */
+  sh.querySelector('#gback').onclick = () => { saveDraft(); closeSheet(); location.href = 'capture.html?new=1'; };
+}
+
+/* 從 step2 進 step3 時，保留上一輪已經填過的內容（取消勾選的才會消失）
+   —— 不然回頭改個畫面，前面填的圖資就全沒了。 */
+function syncItems() {
+  const prev = new Map((W.items || []).map(it => [it.t, it]));
+  W.items = buildItems().map(it => ({ ...it, ...(prev.get(it.t) || {}), url: it.url }));
+}
+
+/* 這一頁自己推進歷史的步驟序列（同一份文件內的 pushState），用來算 history.go 要走幾步 */
+let histSteps = [], histIdx = -1;
+function setStep(n, push = true) {
   W.step = n;
   paintSteps(n);
   document.getElementById('wzTitle').textContent =
@@ -81,7 +121,20 @@ function setStep(n) {
   else if (n === 2) renderStep2();
   else renderStep3();
   window.scrollTo(0, 0);
+  if (!push) return;
+  if (histIdx < 0) { histSteps = [n]; histIdx = 0; return history.replaceState({ wzStep: n, wzIdx: 0 }, '', location.href); }
+  histSteps = histSteps.slice(0, histIdx + 1);
+  histIdx = histSteps.push(n) - 1;
+  history.pushState({ wzStep: n, wzIdx: histIdx }, '', location.href);
 }
+
+/* 返回鍵／瀏覽器上一頁＝回上一步；退到精靈之前的那一頁才是真的離開 */
+window.addEventListener('popstate', e => {
+  const st = e.state;
+  if (!W || !st || !st.wzStep) return;
+  histIdx = st.wzIdx != null ? st.wzIdx : histIdx;
+  if (st.wzStep !== W.step) setStep(st.wzStep, false);
+});
 
 function buildItems() {
   return [...W.selected].sort((a, b) => a - b).map(t => {
@@ -211,7 +264,7 @@ function renderStep2() {
       <span class="txt" id="filterText"></span>
       <button id="filterToggle"></button>
     </div>
-    <div class="wz-tools">
+    <div class="wz-tools pick">
       <button id="tAll" ${noSB ? 'disabled' : ''}>${APP.svg(APP.ICONS.check, 'ic')} 全部選取</button>
       <button id="tManual">${APP.svg(APP.ICONS.imagePlus, 'ic')} 手動補圖</button>
       <button id="tOnly" class="${W.onlySel ? 'on' : ''}">${APP.svg(APP.ICONS.eye, 'ic')} 只看已選<span id="tOnlyN"></span></button>
@@ -341,7 +394,7 @@ function renderStep2() {
     renderGrid();
   };
 
-  document.getElementById('next').onclick = () => { W.items = buildItems(); setStep(3); };
+  document.getElementById('next').onclick = () => { syncItems(); setStep(3); };
 
   renderGrid();
 }
@@ -365,14 +418,16 @@ function renderStep3() {
       eventDate: c.eventDate, place: c.place || '', tags: c.tags.map(t => t.name).join('、'), desc: c.summary || ''
     }));
   }
+  if (W.mode !== 'meta' && !W.items) syncItems();   // 用上一頁／前進鍵直接回到這一步
   const sel = new Set(W.items.map((_, i) => i));   // 進場預設全選
   const dirty = {};                                 // 這一輪抽屜被動過的欄位
   const FIELD_LABEL = { eventDate: '時間', place: '地點', tags: '標籤', desc: '描述' };
 
   stage.innerHTML = `
-    <div class="wz-tools">
+    <div class="wz-tools pick">
+      <span class="pk-lb">選取</span>
       <button id="qAll">全選</button><button id="qNone">全不選</button>
-      <button id="qInv">反選</button><button id="qTodo">只選未填的</button>
+      <button id="qInv">反選</button><button id="qTodo">未填 <b id="qTodoN"></b></button>
     </div>
     <div class="wz-grid step3" id="grid3"></div>
     <div class="wz-dock">
@@ -403,15 +458,33 @@ function renderStep3() {
   APP.placeSuggest(document.getElementById('dPlaces'), document.getElementById('dPlace'),
     () => { dirty.place = true; syncMain(); });
 
-  /* 主按鈕是情境式的：欄位動過就是【套用到 N 張】，沒動過就是【完成】 */
+  /* 抽屜裡「這個欄位現在有明確的值」（〈多個值〉不算）*/
+  function hasValue(key) {
+    if (key === 'tags') return document.getElementById('dTags').dataset.mixed === '0' && drawerTags.length > 0;
+    const el = document.getElementById(Object.keys(fields).find(id => fields[id] === key));
+    return !el.classList.contains('mix') && !!el.value;
+  }
+
+  /* 按下【套用】會寫進去的欄位：
+     動過的一定寫；已選裡還有沒填過的張數時，抽屜現有的值（含預設帶入的時間）也一起寫進去
+     —— 不然「有預設時間卻顯示完成、打一個字才變成套用」會讓人以為預設值不算數。 */
+  function pendingFields() {
+    const fresh = [...sel].some(i => !W.items[i].applied);
+    return Object.keys(FIELD_LABEL).filter(k => dirty[k] || (fresh && hasValue(k)));
+  }
+
+  /* 主按鈕是情境式的：這一批還有東西要寫就是【套用到 N 張】，全部寫完了才是【完成】 */
   function syncMain() {
-    const changed = Object.keys(FIELD_LABEL).filter(k => dirty[k]);
     const btn = document.getElementById('mainBtn');
     const diff = document.getElementById('diff');
-    if (changed.length && sel.size) {
+    const write = sel.size ? pendingFields() : [];
+    const fresh = [...sel].some(i => !W.items[i].applied);
+    if (sel.size && (write.length || fresh)) {
       btn.textContent = `套用到 ${sel.size} 張`;
       diff.hidden = false;
-      diff.innerHTML = `將更新：<b>${changed.map(k => FIELD_LABEL[k]).join('、')}</b>　其他欄位維持各張原值`;
+      diff.innerHTML = write.length
+        ? `將寫入：<b>${write.map(k => FIELD_LABEL[k]).join('、')}</b>　其他欄位維持各張原值`
+        : `這 ${sel.size} 張會標記成已填，欄位先留空（描述之後 AI 補）`;
       btn.dataset.act = 'apply';
     } else {
       btn.textContent = '完成';
@@ -462,6 +535,9 @@ function renderStep3() {
     const todo = W.items.filter(x => !x.applied).length;
     document.getElementById('cnt3').textContent =
       todo ? `${W.items.length} 張 ・ 還有 ${todo} 張沒填` : `${W.items.length} 張都填好了`;
+    const qTodo = document.getElementById('qTodo');
+    document.getElementById('qTodoN').textContent = todo || '';
+    qTodo.disabled = !todo;
     fillDrawer();
   }
 
@@ -471,10 +547,11 @@ function renderStep3() {
   document.getElementById('qTodo').onclick = () => { sel.clear(); W.items.forEach((it, i) => { if (!it.applied) sel.add(i); }); renderGrid3(); };
 
   function apply() {
+    const write = new Set(pendingFields());
     for (const i of sel) {
       const it = W.items[i];
-      for (const [id, key] of Object.entries(fields)) if (dirty[key]) it[key] = document.getElementById(id).value;
-      if (dirty.tags) it.tags = drawerTags.map(t => t.name).join('、');
+      for (const [id, key] of Object.entries(fields)) if (write.has(key)) it[key] = document.getElementById(id).value;
+      if (write.has('tags')) it.tags = drawerTags.map(t => t.name).join('、');
       it.applied = true;
       if (it.ref) {
         it.ref.eventDate = it.eventDate; it.ref.place = it.place; it.ref.summary = it.desc;
@@ -517,6 +594,8 @@ const preset = params.get('v');
 if (preset) {
   const found = findVideo(preset);
   found ? startWizard(found) : (paintSteps(1), renderStep1('找不到這支影片'));
+} else if (params.get('new')) {
+  paintSteps(1); renderStep1();          // 從步驟列回第一步：直接問網址，不要再問一次草稿
 } else {
   const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
   if (draft && findVideo(draft.id)) {

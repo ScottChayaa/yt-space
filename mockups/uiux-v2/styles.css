@@ -919,6 +919,14 @@ button { cursor: pointer; background: none; border: none; padding: 0; }
 .wz-steps .st.done .stlb { color: var(--text-dim); }
 .wz-steps .st.now .bar { background: var(--accent); }
 .wz-steps .st.now .stlb { color: var(--accent); font-weight: var(--w-bold); }
+/* 已完成的步驟＝可以點回去的按鈕 */
+.wz-steps button.st {
+  background: none; border: 0; padding: 0; margin: 0;
+  font: inherit; text-align: left; cursor: pointer;
+}
+.wz-steps button.st .stlb { display: flex; align-items: center; gap: 2px; }
+.wz-steps button.st .bk { color: var(--accent); font-weight: var(--w-bold); }
+.wz-steps button.st:active .stlb { color: var(--accent); }
 
 .wz-body { padding: var(--s4); }
 .wz-field label {
@@ -975,6 +983,23 @@ button { cursor: pointer; background: none; border: none; padding: 0; }
 }
 .wz-tools button.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .wz-tools button .ic { width: 17px; height: 17px; }
+
+/* 精靈的工具列：這些都不是主要動作，改成灰底小鈕，
+   讓視線留在圖格與底部的主按鈕上 */
+.wz-tools.pick { gap: var(--s1); padding: var(--s2) var(--s4); align-items: center; }
+.wz-tools.pick .pk-lb {
+  font-size: var(--t-xs); color: var(--text-dim); margin-right: var(--s1);
+}
+.wz-tools.pick button {
+  min-height: 30px; padding: 0 var(--s2);
+  background: var(--surface-2); border: 1px solid transparent;
+  border-radius: var(--r-sm); font-size: var(--t-xs); color: var(--text);
+}
+.wz-tools.pick button:active { background: var(--accent-weak); border-color: var(--accent-line); }
+.wz-tools.pick button b { font-weight: var(--w-medium); color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.wz-tools.pick button:disabled { color: var(--text-dim); opacity: 0.5; }
+.wz-tools.pick button .ic { width: 15px; height: 15px; }
+.wz-tools.pick button.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 
 /* 過濾狀態列：可逆、說明目前少看了幾張 */
 .wz-filter {
