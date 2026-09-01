@@ -53,47 +53,47 @@ const CLIPS = [
   // ── OK哥 Ea8ICLXTDaU：一支影片 3 個 clip（詳細頁主角）──
   { id: 'c01', videoId: 'Ea8ICLXTDaU', start: 132, end: 168, eventDate: '2026-08-03', status: 'reviewed',
     summary: '夜潛第一次見到巨型犀牛蝦，藏在礁石縫裡', note: '犀牛蝦好大',
-    tags: [{ name: '加勒比海', kind: 'place', source: 'human' }, { name: '夜潛', kind: 'topic', source: 'human' }, { name: '龍蝦', kind: 'other', source: 'ai' }] },
+    tags: [{ name: '加勒比海', kind: 'place' }, { name: '夜潛', kind: 'topic' }, { name: '龍蝦', kind: 'other' }] },
   { id: 'c02', videoId: 'Ea8ICLXTDaU', start: 612, end: 650, eventDate: '2026-08-03', status: 'reviewed',
     summary: '在無人島沙灘生火煮海鮮，畫面超療癒', note: '',
-    tags: [{ name: '無人島', kind: 'place', source: 'ai' }, { name: '露營', kind: 'topic', source: 'ai' }] },
+    tags: [{ name: '無人島', kind: 'place' }, { name: '露營', kind: 'topic' }] },
   { id: 'c03', videoId: 'Ea8ICLXTDaU', start: 1140, end: 1176, eventDate: '2026-08-03', status: 'reviewed',
     summary: '海底遇到一群魚群，能見度極佳', note: '這段風景最美',
-    tags: [{ name: '潛水', kind: 'topic', source: 'human' }, { name: '魚群', kind: 'other', source: 'ai' }] },
+    tags: [{ name: '潛水', kind: 'topic' }, { name: '魚群', kind: 'other' }] },
 
   // ── 其餘首頁 clip（reviewed，跨不同月份）──
   { id: 'c04', videoId: 'dnsK8HWD8us', start: 480, end: 520, eventDate: '2026-06-18', status: 'reviewed',
     summary: '與2米長大鯊魚近距離對峙，超緊張', note: '差點掉線',
-    tags: [{ name: '加勒比海', kind: 'place', source: 'human' }, { name: '鯊魚', kind: 'other', source: 'human' }, { name: '粉色螺珠', kind: 'topic', source: 'ai' }] },
+    tags: [{ name: '加勒比海', kind: 'place' }, { name: '鯊魚', kind: 'other' }, { name: '粉色螺珠', kind: 'topic' }] },
   { id: 'c05', videoId: '7TIoqV_J8zg', start: 300, end: 342, eventDate: '2026-05-09', status: 'reviewed',
     summary: '在河床挖到史前巨齒鯊的大牙齒', note: '',
-    tags: [{ name: '佛羅里達', kind: 'place', source: 'ai' }, { name: '化石', kind: 'topic', source: 'human' }, { name: '巨齒鯊', kind: 'other', source: 'ai' }] },
+    tags: [{ name: '佛羅里達', kind: 'place' }, { name: '化石', kind: 'topic' }, { name: '巨齒鯊', kind: 'other' }] },
 
   { id: 'c06', videoId: 'Pe226YsYVWk', start: 210, end: 250, eventDate: '2026-07-21', status: 'reviewed',
     summary: '108元的第一螺螄鴨腳煲，湯頭濃郁', note: '鴨腳很入味',
-    tags: [{ name: '柳州', kind: 'place', source: 'human' }, { name: '螺螄粉', kind: 'topic', source: 'human' }, { name: '宵夜', kind: 'topic', source: 'ai' }] },
+    tags: [{ name: '柳州', kind: 'place' }, { name: '螺螄粉', kind: 'topic' }, { name: '宵夜', kind: 'topic' }] },
   { id: 'c07', videoId: 'r4YnYow7L_4', start: 156, end: 192, eventDate: '2026-04-14', status: 'reviewed',
     summary: '3.5元的卷筒粉，CP值爆表', note: '',
-    tags: [{ name: '廣西', kind: 'place', source: 'human' }, { name: '米粉', kind: 'topic', source: 'human' }] },
+    tags: [{ name: '廣西', kind: 'place' }, { name: '米粉', kind: 'topic' }] },
   { id: 'c08', videoId: 'AovUL5FMYnc', start: 420, end: 456, eventDate: '2026-02-27', status: 'reviewed',
     summary: '南寧大排檔的15元海鮮粉，料多實在', note: '老闆超豪邁',
-    tags: [{ name: '南寧', kind: 'place', source: 'ai' }, { name: '大排檔', kind: 'topic', source: 'human' }, { name: '海鮮', kind: 'topic', source: 'ai' }] },
+    tags: [{ name: '南寧', kind: 'place' }, { name: '大排檔', kind: 'topic' }, { name: '海鮮', kind: 'topic' }] },
   { id: 'c09', videoId: 'DUmtBh5jUjk', start: 260, end: 300, eventDate: '2025-12-30', status: 'reviewed',
     summary: '博白白切，55元一斤肉質鮮嫩', note: '',
-    tags: [{ name: '博白', kind: 'place', source: 'human' }, { name: '白切', kind: 'topic', source: 'ai' }] },
+    tags: [{ name: '博白', kind: 'place' }, { name: '白切', kind: 'topic' }] },
 
   { id: 'c10', videoId: 'nNLvL1z_mjE', start: 540, end: 580, eventDate: '2026-03-11', status: 'reviewed',
     summary: '即將消失的縣城，老街依然熱鬧', note: '很有時代感',
-    tags: [{ name: '縣城', kind: 'place', source: 'human' }, { name: '老街', kind: 'topic', source: 'ai' }] },
+    tags: [{ name: '縣城', kind: 'place' }, { name: '老街', kind: 'topic' }] },
   { id: 'c11', videoId: '1NJZKzeWbg8', start: 420, end: 464, eventDate: '2026-01-08', status: 'reviewed',
     summary: '斷崖式交界帶，一邊盆地一邊高原', note: '地形超震撼',
-    tags: [{ name: '高原', kind: 'place', source: 'human' }, { name: '地理', kind: 'topic', source: 'human' }] },
+    tags: [{ name: '高原', kind: 'place' }, { name: '地理', kind: 'topic' }] },
   { id: 'c12', videoId: 'ee9JlJh5mVw', start: 330, end: 366, eventDate: '2025-11-19', status: 'reviewed',
     summary: '西遊記「女兒國」原型縣城，人口密度驚人', note: '',
-    tags: [{ name: '縣城', kind: 'place', source: 'ai' }, { name: '西遊記', kind: 'topic', source: 'human' }] },
+    tags: [{ name: '縣城', kind: 'place' }, { name: '西遊記', kind: 'topic' }] },
   { id: 'c13', videoId: '8QwV1fcYtfs', start: 300, end: 348, eventDate: '2025-09-05', status: 'reviewed',
     summary: '橫穿秦嶺鰲太線，雲海壯闊', note: '走了4小時',
-    tags: [{ name: '秦嶺', kind: 'place', source: 'human' }, { name: '登山', kind: 'topic', source: 'human' }, { name: '雲海', kind: 'other', source: 'ai' }] },
+    tags: [{ name: '秦嶺', kind: 'place' }, { name: '登山', kind: 'topic' }, { name: '雲海', kind: 'other' }] },
 
 ];
 
@@ -162,7 +162,7 @@ for (const c of CLIPS) c.tags = c.tags.filter(t => t.kind !== 'place');
    facet='place' 走 shot.place 比對，facet='tag' 走 shot_tag */
 function shotFacets(clip) {
   return [
-    ...(clip.place ? [{ name: clip.place, kind: 'place', facet: 'place', source: 'human' }] : []),
+    ...(clip.place ? [{ name: clip.place, kind: 'place', facet: 'place' }] : []),
     ...clip.tags.map(t => ({ ...t, facet: 'tag' }))
   ];
 }

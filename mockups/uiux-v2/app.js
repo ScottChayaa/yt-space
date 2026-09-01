@@ -51,7 +51,7 @@ function kindSvg(kind) {
 
 /* 標籤 chip HTML（統一產生器）；plainHash: 一律用中性 # icon（首頁縮圖標籤）*/
 function tagChip(tag, opts = {}) {
-  const cls = ['chip', 'mini', opts.selected ? 'sel' : '', tag.source === 'ai' ? 'ai' : ''].join(' ').trim();
+  const cls = ['chip', 'mini', opts.selected ? 'sel' : ''].join(' ').trim();
   const icon = opts.plainHash
     ? `<svg class="kico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${KIND.topic.icon}</svg>`
     : kindSvg(tag.kind);
@@ -93,11 +93,11 @@ function bindPress(el, { onTap, onHold, delay = 450 }) {
   el.addEventListener('pointerleave', cancel);
 }
 
-/* 首頁 tile 用：取 top 2 標籤（地點優先，其次 human）*/
+/* 首頁 tile 用：取 top 2 標籤（依種類排序，地點優先）*/
 function top2Tags(clip) {
   const order = { place: 0, person: 1, topic: 2, pet: 3, other: 4 };
   return [...M.shotFacets(clip)]
-    .sort((a, b) => (a.source === 'ai') - (b.source === 'ai') || order[a.kind] - order[b.kind])
+    .sort((a, b) => order[a.kind] - order[b.kind])
     .slice(0, 2);
 }
 
@@ -127,7 +127,7 @@ function openSheet(clip) {
     <div class="field"><label>備註</label><textarea rows="2">${clip.note || ''}</textarea></div>
     <button class="analyze">AI 分析這段　·　約 30 秒 · 區間分析</button>
     <div class="field"><label>摘要</label><textarea rows="2">${clip.summary || ''}</textarea></div>
-    <div class="field"><label>標籤（虛線 = AI 待確認）</label><div class="chips">${tagChips}</div></div>
+    <div class="field"><label>標籤</label><div class="chips">${tagChips}</div></div>
     <div class="field"><label>事件日期</label><input type="date" value="${clip.eventDate}">
       ${dateWarn ? '<div class="warn-line">⚠ 與上傳日不同（事件發生日）</div>' : ''}</div>
     <button class="confirm" onclick="closeSheet()">✓ 確認</button>
@@ -278,7 +278,7 @@ function mountPlayer(host, opts) {
 }
 
 /* ── 標籤編輯器（chip 形式；就地編輯與精靈第三步共用）──
-   host: 容器元素；tags: [{name,kind,source}]；onChange(tags) 每次變動都會呼叫。
+   host: 容器元素；tags: [{name,kind}]；onChange(tags) 每次變動都會呼叫。
    host.dataset.mixed='1' 代表多張圖的值不一致，先顯示〈多個值〉，動過才開始收集。*/
 function tagEditor(host, tags, onChange) {
   let list = tags.map(t => ({ ...t }));
@@ -313,7 +313,7 @@ function tagEditor(host, tags, onChange) {
     host.querySelector('.te-add').onclick = () => { open = !open; render(); };
     host.querySelectorAll('[data-add]').forEach(el => el.onclick = () => {
       if (isMixed()) list = [];            // 從〈多個值〉開始編輯＝整組換掉
-      list.push({ name: el.dataset.add, kind: el.dataset.kind, source: 'human' });
+      list.push({ name: el.dataset.add, kind: el.dataset.kind });
       touched(); render();
     });
     const ok = host.querySelector('.te-ok');
@@ -321,7 +321,7 @@ function tagEditor(host, tags, onChange) {
       const name = host.querySelector('.te-name').value.trim();
       if (!name || list.some(t => t.name === name)) return;
       if (isMixed()) list = [];
-      list.push({ name, kind: newKind, source: 'human' });
+      list.push({ name, kind: newKind });
       touched(); render();
     };
     // 新標籤要用哪個圖示（沿用設定頁「顯示圖示」的挑選方式）

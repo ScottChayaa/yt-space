@@ -295,7 +295,7 @@
           const name = rest.join(':');
           const kind = f === 'place' ? 'place'
             : (REVIEWED.flatMap(c => c.tags).find(t => t.name === name)?.kind || 'topic');
-          return APP.tagChip({ name, kind, source: 'human' });
+          return APP.tagChip({ name, kind });
         }).join('')
       : `<span class="chip mini">${APP.svg(APP.ICONS.search, 'kico')}<span class="cn">${q}</span></span>`;
 

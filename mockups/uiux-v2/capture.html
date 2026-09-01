@@ -350,7 +350,7 @@ function renderStep2() {
 function parseTags(str) {
   const known = M.allTags();
   return (str || '').split(/[、,，]/).map(x => x.trim()).filter(Boolean)
-    .map(n => ({ name: n, kind: (known.find(t => t.name === n) || {}).kind || 'topic', source: 'human' }));
+    .map(n => ({ name: n, kind: (known.find(t => t.name === n) || {}).kind || 'topic' }));
 }
 
 /* ───── 第三步：填資料 ─────
@@ -479,7 +479,7 @@ function renderStep3() {
       if (it.ref) {
         it.ref.eventDate = it.eventDate; it.ref.place = it.place; it.ref.summary = it.desc;
         it.ref.tags = it.tags.split(/[、,，]/).map(x => x.trim()).filter(Boolean)
-          .map(n => it.ref.tags.find(t => t.name === n) || { name: n, kind: 'topic', source: 'human' });
+          .map(n => it.ref.tags.find(t => t.name === n) || { name: n, kind: 'topic' });
       }
     }
     const n = sel.size;
@@ -496,7 +496,7 @@ function renderStep3() {
         id: 'n' + Date.now().toString(36) + i, videoId: W.key,
         start: it.t, end: it.t, eventDate: it.eventDate || '2026-08-20', status: 'reviewed',
         summary: it.desc, note: '', place: it.place,
-        tags: it.tags.split(/[、,，]/).map(x => x.trim()).filter(Boolean).map(n => ({ name: n, kind: 'topic', source: 'human' }))
+        tags: it.tags.split(/[、,，]/).map(x => x.trim()).filter(Boolean).map(n => ({ name: n, kind: 'topic' }))
       });
     });
     clearDraft();

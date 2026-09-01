@@ -439,7 +439,6 @@ button { cursor: pointer; background: none; border: none; padding: 0; }
   background: currentColor;
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center / contain no-repeat;
 }
-.chip.ai { border-style: dashed; }
 /* 純顯示用的小 chip（不可點，因此不受 44px 限制）*/
 .chip.mini {
   min-height: 0; padding: 2px var(--s2);
@@ -671,10 +670,10 @@ button { cursor: pointer; background: none; border: none; padding: 0; }
 .tag-editor .te-add {
   display: flex; align-items: center; justify-content: center; gap: var(--s1);
   min-height: var(--tap); padding: 0 var(--s3);
-  border-radius: var(--r-sm); border: 1px dashed var(--border-strong);
+  border-radius: var(--r-sm); border: 1px solid var(--border-strong);
   color: var(--text-dim); font-size: var(--t-sm);
 }
-.tag-editor .te-add.on { border-style: solid; border-color: var(--accent); color: var(--accent); background: var(--accent-weak); }
+.tag-editor .te-add.on { border-color: var(--accent); color: var(--accent); background: var(--accent-weak); }
 .tag-editor .te-pick {
   margin-top: var(--s3); background: var(--surface-2);
   border-radius: var(--r-sm); padding: var(--s3);
