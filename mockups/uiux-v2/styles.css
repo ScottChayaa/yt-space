@@ -1113,14 +1113,32 @@ button { cursor: pointer; background: none; border: none; padding: 0; }
   padding: var(--s2) var(--s3); font-size: var(--t-sm);
 }
 .meta-drawer .field .mix::placeholder { color: var(--text-dim); font-style: italic; }
-/* 會寫入哪些欄位 —— v1 的「只有動過的欄位會被套用」是隱形規則 */
-.wz-diff {
+
+/* 會寫入哪些欄位 —— 「只有動過的欄位會被套用」是隱形規則，直接標在欄位上。
+   每個 label 都預留一顆點的位置，亮起來時文字不會位移。 */
+.meta-drawer .field > label { display: flex; align-items: center; gap: var(--s2); }
+.meta-drawer .field > label::before,
+.meta-drawer .dnote::before {
+  content: ''; flex: 0 0 auto;
+  width: 6px; height: 6px; border-radius: 50%; background: transparent;
+}
+.meta-drawer .field.will-write > label { color: var(--accent); }
+.meta-drawer .field.will-write > label::before,
+.meta-drawer .dnote::before { background: var(--accent); }
+/* 「其他欄位維持各張原值」是常數規則，只有多選時才有意義 */
+.meta-drawer .dnote {
+  display: flex; align-items: center; gap: var(--s2);
+  margin-bottom: var(--s3);
+  font-size: var(--t-xs); color: var(--text-dim);
+}
+
+/* 抽屜全空也能按套用 —— 這件事欄位上的點講不出來，才留這一列 */
+.wz-note {
   display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap;
   padding: var(--s2) var(--s4);
   font-size: var(--t-xs); color: var(--text-dim);
   border-top: 1px solid var(--border);
 }
-.wz-diff b { color: var(--accent); font-weight: var(--w-medium); }
 .wz-dock .dock-foot {
   display: flex; align-items: center; gap: var(--s3);
   padding: var(--s2) var(--s4) var(--s3);

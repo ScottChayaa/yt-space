@@ -411,7 +411,8 @@ function parseTags(str) {
    v1 的底部是三層（抽屜 + 按鈕列 + 導覽列），而且【套用】是搶眼的紅鈕、
    【完成】是灰色外框鈕 —— 流程終點被畫成次要動作。
    v2 收成同一塊 dock，主按鈕依「有沒有動過欄位」切換文字，
-   並把「只有動過的欄位會被套用」這條隱形規則寫在按鈕上方。 */
+   並把「只有動過的欄位會被套用」這條隱形規則就地標記在抽屜的欄位上
+   —— 差異長在編輯發生的地方，不必在按鈕上方再重述一次欄位清單。 */
 function renderStep3() {
   if (W.mode === 'meta' && !W.items) {
     W.items = M.CLIPS.filter(c => c.videoId === W.key).map(c => ({
@@ -422,7 +423,7 @@ function renderStep3() {
   if (W.mode !== 'meta' && !W.items) syncItems();   // 用上一頁／前進鍵直接回到這一步
   const sel = new Set(W.items.map((_, i) => i));   // 進場預設全選
   const dirty = {};                                 // 這一輪抽屜被動過的欄位
-  const FIELD_LABEL = { eventDate: '時間', place: '地點', tags: '標籤', desc: '描述' };
+  const FIELDS = ['eventDate', 'place', 'tags', 'desc'];
 
   stage.innerHTML = `
     <div class="wz-tools pick">
@@ -434,17 +435,18 @@ function renderStep3() {
     <div class="wz-dock">
       <div class="meta-drawer" id="drawer" hidden>
         <div class="dh"><span id="dTitle"></span><span class="dsub" id="dSub"></span></div>
-        <div class="field"><label for="dDate">時間（事件發生日）</label>
+        <div class="dnote" id="dNote" hidden>這些欄位會寫入，其他欄位維持各張原值</div>
+        <div class="field" data-k="eventDate"><label for="dDate">時間（事件發生日）</label>
           <input id="dDate" type="date">
           <div class="hint">預設帶入 YouTube 的日期，可以改成實際拍攝日</div></div>
-        <div class="field"><label for="dPlace">地點</label>
+        <div class="field" data-k="place"><label for="dPlace">地點</label>
           <input id="dPlace" type="text" placeholder="例：宜蘭">
           <div class="sug-label">用過的地點</div><div class="sug" id="dPlaces"></div></div>
-        <div class="field"><label>標籤</label><div class="tag-editor" id="dTags"></div></div>
-        <div class="field"><label for="dDesc">描述</label>
+        <div class="field" data-k="tags"><label>標籤</label><div class="tag-editor" id="dTags"></div></div>
+        <div class="field" data-k="desc"><label for="dDesc">描述</label>
           <textarea id="dDesc" rows="2" placeholder="留空，之後 AI 補"></textarea></div>
       </div>
-      <div class="wz-diff" id="diff" hidden></div>
+      <div class="wz-note" id="note" hidden></div>
       <div class="dock-foot">
         <span class="n" id="cnt3"></span>
         <button class="btn primary" id="mainBtn">完成</button>
@@ -471,25 +473,34 @@ function renderStep3() {
      —— 不然「有預設時間卻顯示完成、打一個字才變成套用」會讓人以為預設值不算數。 */
   function pendingFields() {
     const fresh = [...sel].some(i => !W.items[i].applied);
-    return Object.keys(FIELD_LABEL).filter(k => dirty[k] || (fresh && hasValue(k)));
+    return FIELDS.filter(k => dirty[k] || (fresh && hasValue(k)));
+  }
+
+  /* 會被寫入的欄位就地打點，取代按鈕上方那一列「將寫入：…」的重述。
+     「其他欄位維持各張原值」是常數規則，只有多選、而且真的有欄位要寫時才需要講。 */
+  function markFields(write) {
+    const on = new Set(write);
+    document.querySelectorAll('#drawer .field[data-k]').forEach(f =>
+      f.classList.toggle('will-write', on.has(f.dataset.k)));
+    document.getElementById('dNote').hidden = !(sel.size > 1 && on.size);
   }
 
   /* 主按鈕是情境式的：這一批還有東西要寫就是【套用到 N 張】，全部寫完了才是【完成】 */
   function syncMain() {
     const btn = document.getElementById('mainBtn');
-    const diff = document.getElementById('diff');
+    const note = document.getElementById('note');
     const write = sel.size ? pendingFields() : [];
     const fresh = [...sel].some(i => !W.items[i].applied);
+    markFields(write);
     if (sel.size && (write.length || fresh)) {
       btn.textContent = `套用到 ${sel.size} 張`;
-      diff.hidden = false;
-      diff.innerHTML = write.length
-        ? `將寫入：<b>${write.map(k => FIELD_LABEL[k]).join('、')}</b>　其他欄位維持各張原值`
-        : `這 ${sel.size} 張會標記成已填，欄位先留空（描述之後 AI 補）`;
+      /* 抽屜全空還能按套用，這件事欄位上的點講不出來，留一句話說明 */
+      note.hidden = !!write.length;
+      note.textContent = `這 ${sel.size} 張會標記成已填，欄位先留空（描述之後 AI 補）`;
       btn.dataset.act = 'apply';
     } else {
       btn.textContent = '完成';
-      diff.hidden = true;
+      note.hidden = true;
       btn.dataset.act = 'finish';
     }
   }
